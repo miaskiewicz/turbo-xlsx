@@ -1,0 +1,41 @@
+# Standalone native parse benchmark: turbo-xlsx-core (parse feature) vs calamine,
+# the fast Rust .xlsx reader. Its OWN workspace (empty `[workspace]` table, like
+# tools/cc-check) so calamine/zip never enter the published turbo-xlsx workspace
+# lock or its coverage/cc gates.
+[workspace]
+
+[package]
+name = "parse-native-bench"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Head-to-head vs calamine.
+[[bin]]
+name = "parse-native"
+path = "src/main.rs"
+
+# Phase hotspot profiler (unzip+inflate vs XML+value-build) to direct optimization.
+[[bin]]
+name = "parse-hotspot"
+path = "src/hotspot.rs"
+
+[dependencies]
+# The thing under test: our hand-rolled reader. `bench-internals` exposes the
+# parse phase entry points (read_zip) so the hotspot profiler can time them.
+turbo-xlsx-core = { path = "../../crates/turbo-xlsx-core", features = [
+    "parse",
+    "bench-internals",
+] }
+# The yardstick: calamine, the de-facto fast Rust spreadsheet reader.
+calamine = "0.26"
+# Used ONLY to re-compress the fixture into a real DEFLATEd .xlsx (turbo's writer
+# emits STORED), so both readers exercise their inflate path.
+zip = { version = "2", default-features = false, features = ["deflate"] }
+serde_json = "1"
+
+# Release-quality numbers; debug is meaningless for a perf comparison.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

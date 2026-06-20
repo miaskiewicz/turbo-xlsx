@@ -19,6 +19,13 @@ use std::fmt;
 
 pub use read::{parse, CellValue, ParsedSheet, ParsedWorkbook};
 
+/// Phase entry points for the parse **hotspot profiler**, exposed ONLY under the
+/// off-by-default `bench-internals` feature (never in the shipped library or the
+/// coverage build). `read_zip` is the unzip+inflate phase; timing it against the
+/// full `parse` isolates decompression from XML tokenizing + value building.
+#[cfg(feature = "bench-internals")]
+pub use unzip::{read_zip, Entry};
+
 /// A fatal parse failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {

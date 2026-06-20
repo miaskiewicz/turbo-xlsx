@@ -176,6 +176,7 @@ crates/turbo-xlsx-mcp    MCP server (stdio JSON-RPC 2.0): write / parse / conver
 schema/                  versioned JSON Schema for the workbook model
 benches/competitive      perf + conformance harness vs exceljs / SheetJS (write + parse)
 benches/competitive-py   perf + conformance harness vs XlsxWriter / openpyxl (write + parse)
+benches/parse-native     native Rust parse harness vs calamine + a phase hotspot profiler
 tools/cc-check           cyclomatic-complexity gate (cc ≤ 5), sibling of scripts/cc-check.js
 ```
 
@@ -302,8 +303,17 @@ several times faster reading the same compressed bytes:
 |---|---|---|
 | **turbo-xlsx** vs **SheetJS** (Node) | **3.1×** faster | **4.0×** faster |
 | **turbo-xlsx** vs **openpyxl** (Python) | **8.3×** faster | **9.7×** faster |
+| **turbo-xlsx** vs **calamine** (native Rust) | **0.97×** (parity) | **0.93–0.98×** (parity) |
 
 (Node 24 / Python 3, darwin/arm64, release builds — indicative, reproduce locally.)
+
+Against [`calamine`](https://crates.io/crates/calamine) — the fast Rust reader, the
+real yardstick — turbo is at **parity** (a few percent behind), despite being a
+dependency-free hand-rolled inflater + zip reader + XML tokenizer. A native
+[`benches/parse-native`](benches/parse-native) harness runs the head-to-head and a
+**phase profiler** (`parse-hotspot`): it attributes **~83%** of parse time to the
+**XML tokenize + value-build** stage and only ~17% to unzip+inflate, so that XML
+stage — not decompression — is where any push past calamine has to come from.
 
 ```sh
 # Node: build the parse-enabled addon, then run compat + perf
@@ -318,6 +328,10 @@ cd benches/competitive-py && python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt maturin
 maturin develop --manifest-path ../../crates/turbo-xlsx-py/Cargo.toml --features parse --release
 python parse_compat.py   # cell-for-cell + read speed vs openpyxl
+
+# Native Rust: head-to-head vs calamine + the phase hotspot profiler
+cargo run --release --manifest-path benches/parse-native/Cargo.toml                      # vs calamine
+cargo run --release --bin parse-hotspot --manifest-path benches/parse-native/Cargo.toml  # phase profiler
 ```
 
 ## Development
