@@ -1,11 +1,12 @@
 # =============================================================================
-# Python (PyPI) release workflow for `turbo-xlsx`.
+# Python (PyPI) release workflow for `turbo-xlsx-rs`.
 #
 # A SEPARATE, opt-in workflow that does NOT touch the npm `release.yml`. Builds
 # maturin abi3 wheels (CPython 3.8+, one per platform) plus an sdist, for TWO
-# distributions, and publishes to PyPI on a `pyv*` tag (first: pyv0.1.0):
-#   * turbo-xlsx        — lean writer-only build.
-#   * turbo-xlsx-parse  — built with --features parse (writer + XLSX reader).
+# distributions, and publishes to PyPI on a `pyv*` tag (first: pyv0.1.1):
+#   * turbo-xlsx-rs        — lean writer-only build.
+#   * turbo-xlsx-rs-parse  — built with --features parse (writer + XLSX reader).
+# (PyPI rejects `turbo-xlsx`: it collapses to the existing `turboxlsx`.)
 # Both expose the SAME import name `turbo_xlsx`; you install whichever variant
 # you need (the with/without split mirrors turbo-html2pdf's fonts). Gated on the
 # `PYPI_TOKEN` secret: until it is set the publish job is a no-op, so merging
@@ -26,17 +27,20 @@ permissions:
 
 jobs:
   build:
-    name: build wheel ${{ matrix.variant }} ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
+    name: build wheel ${{ matrix.variant }} ${{ matrix.platform.target }}
+    runs-on: ${{ matrix.platform.os }}
     strategy:
       fail-fast: false
+      # Two independent axes that cross-multiply: variant × platform = 8 wheels.
+      # (An `include`-only platform list does NOT cross with `variant` — it adds
+      # standalone jobs — which is why the platform must be its own list axis.)
       matrix:
         variant: [base, parse]
-        include:
+        platform:
           - { os: ubuntu-latest, target: x86_64, manylinux: auto }
           - { os: ubuntu-latest, target: aarch64, manylinux: auto }
-          - { os: macos-latest, target: aarch64 }
-          - { os: windows-latest, target: x64 }
+          - { os: macos-latest, target: aarch64, manylinux: auto }
+          - { os: windows-latest, target: x64, manylinux: auto }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -47,19 +51,19 @@ jobs:
       - name: Rename distribution for the parse variant
         if: matrix.variant == 'parse'
         shell: bash
-        run: sed -i.bak 's/^name = "turbo-xlsx"$/name = "turbo-xlsx-parse"/' crates/turbo-xlsx-py/pyproject.toml
+        run: sed -i.bak 's/^name = "turbo-xlsx-rs"$/name = "turbo-xlsx-rs-parse"/' crates/turbo-xlsx-py/pyproject.toml
       # abi3 → ONE wheel per platform serves every CPython >= 3.8.
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.target }}
-          manylinux: ${{ matrix.manylinux }}
+          target: ${{ matrix.platform.target }}
+          manylinux: ${{ matrix.platform.manylinux }}
           args: --release --out dist --manifest-path crates/turbo-xlsx-py/Cargo.toml ${{ matrix.variant == 'parse' && '--features parse' || '' }}
           working-directory: .
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-${{ matrix.variant }}-${{ matrix.os }}-${{ matrix.target }}
+          name: wheels-${{ matrix.variant }}-${{ matrix.platform.os }}-${{ matrix.platform.target }}
           path: dist/*.whl
           if-no-files-found: error
 
@@ -74,7 +78,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Rename distribution for the parse variant
         if: matrix.variant == 'parse'
-        run: sed -i.bak 's/^name = "turbo-xlsx"$/name = "turbo-xlsx-parse"/' crates/turbo-xlsx-py/pyproject.toml
+        run: sed -i.bak 's/^name = "turbo-xlsx-rs"$/name = "turbo-xlsx-rs-parse"/' crates/turbo-xlsx-py/pyproject.toml
       - name: Build sdist
         uses: PyO3/maturin-action@v1
         with:

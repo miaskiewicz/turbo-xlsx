@@ -119,7 +119,7 @@ parse(bytes, { format: "md" });            // GitHub-flavored Markdown table
 ```
 
 ```python
-import turbo_xlsx as tx                    # the turbo-xlsx-parse wheel
+import turbo_xlsx as tx                    # the turbo-xlsx-rs-parse wheel
 tx.parse(data, format="csv", sheet="Q1")   # -> str
 ```
 
@@ -170,7 +170,7 @@ Register it like any stdio MCP server (e.g. `claude mcp add turbo-xlsx -- \
 crates/turbo-xlsx-core   Rust core: workbook model → OOXML SpreadsheetML → OPC zip
                          (+ optional `parse` feature: XLSX → JSON/CSV/Markdown reader)
 crates/turbo-xlsx-napi   napi-rs binding → published as `turbo-xlsx` on npm
-crates/turbo-xlsx-py     PyO3/maturin binding → `pip install turbo-xlsx` (abi3 wheels)
+crates/turbo-xlsx-py     PyO3/maturin binding → `pip install turbo-xlsx-rs` (abi3 wheels; import turbo_xlsx)
 crates/turbo-xlsx-wasm   wasm-bindgen browser build (`turbo-xlsx-wasm`)
 crates/turbo-xlsx-mcp    MCP server (stdio JSON-RPC 2.0): write / parse / convert / inspect
 schema/                  versioned JSON Schema for the workbook model
@@ -182,9 +182,11 @@ tools/cc-check           cyclomatic-complexity gate (cc ≤ 5), sibling of scrip
 Each binding ships in **two variants**, exactly like `turbo-html2pdf`'s with/without
 fonts: a lean writer-only base package, and a `…-parse` build that adds the XLSX
 **reader** (the `parse` Cargo feature). On npm that is `turbo-xlsx` vs
-`turbo-xlsx-parse`; on PyPI `turbo-xlsx` vs `turbo-xlsx-parse`; for wasm
-`turbo-xlsx-wasm` vs `turbo-xlsx-wasm-parse`. The reader is off by default so the
-common write-only install carries no extra code (wasm: 188 KB → 211 KB gzipped).
+`turbo-xlsx-parse`; on PyPI `turbo-xlsx-rs` vs `turbo-xlsx-rs-parse` (the import
+name stays `turbo_xlsx`; PyPI rejects `turbo-xlsx` as too close to the existing
+`turboxlsx`); for wasm `turbo-xlsx-wasm` vs `turbo-xlsx-wasm-parse`. The reader is
+off by default so the common write-only install carries no extra code (wasm: 188 KB
+→ 211 KB gzipped).
 
 All three bindings expose the same surface over the one core — Node (`turbo-xlsx`),
 Python (`import turbo_xlsx`), browser (wasm). The Python `WorkbookWriter` mirrors

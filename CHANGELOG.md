@@ -4,6 +4,27 @@ All notable changes to **turbo-xlsx** are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] — 2026-06-21
+
+First working multi-registry release. 0.1.0's npm-napi and PyPI publishes failed
+(see below) and never shipped; crates.io `turbo-xlsx-core` 0.1.0 and the
+`turbo-xlsx-wasm*` 0.1.0 packages did ship and are superseded by 0.1.1.
+
+### Fixed
+
+- **napi musl segfault**: the addon set mimalloc as the global allocator
+  unconditionally; a statically-linked mimalloc segfaults when the `.node` is
+  `dlopen`'d under musl-libc Node, which failed the musl smoke gate and blocked
+  the entire npm-napi publish. mimalloc is now gated to non-musl targets
+  (`cfg(not(target_env = "musl"))`); musl uses the system allocator.
+- **PyPI distribution name**: `turbo-xlsx` is rejected by PyPI as too similar to
+  the existing `turboxlsx`. The Python packages are now **`turbo-xlsx-rs`** /
+  **`turbo-xlsx-rs-parse`** (the import name stays `turbo_xlsx`).
+- **PyPI wheel matrix**: the variant×platform matrix used an `include`-only
+  platform list that did not cross-multiply with the `variant` axis, so only the
+  Windows wheel built. Platform is now its own list axis (8 wheels: 2 variants ×
+  4 targets).
+
 ## [0.1.0] — 2026-06-20
 
 First release. A native, write-only, country-agnostic XLSX writer (Rust core)
@@ -66,4 +87,5 @@ shipped to **npm** (`turbo-xlsx`), **PyPI** (`turbo-xlsx`), and the **browser**
   formulas, no cross-sheet references, no charts, no embedded images, no `.xls`.
 - `WriteOptions.password` is accepted but a no-op (XLSX encryption is v2).
 
+[0.1.1]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.1
 [0.1.0]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.0

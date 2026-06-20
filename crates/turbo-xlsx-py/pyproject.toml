@@ -3,8 +3,11 @@ requires = ["maturin>=1.5,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "turbo-xlsx"
-version = "0.1.0"
+# PyPI rejects `turbo-xlsx` (collapses to the existing `turboxlsx`); the import
+# name stays `turbo_xlsx` (see [tool.maturin] module-name). The release workflow
+# rewrites this to `turbo-xlsx-rs-parse` for the parse-feature wheel.
+name = "turbo-xlsx-rs"
+version = "0.1.1"
 description = "Native workbook-model-to-XLSX writer (PyO3 binding over the turbo-xlsx Rust core)."
 readme = "README.md"
 requires-python = ">=3.8"

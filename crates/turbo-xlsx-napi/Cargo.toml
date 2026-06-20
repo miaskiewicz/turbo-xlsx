@@ -20,8 +20,12 @@ serde_json = { workspace = true }
 # napi-rs front-end (native addon). `napi6` matches the turbo-* ABI baseline.
 napi = { version = "2", default-features = false, features = ["napi6", "serde-json"] }
 napi-derive = "2"
+
 # Faster small-allocation churn for the write hot path (many short Strings/Vecs).
 # `default-features = false` drops the `secure` hardening for raw throughput.
+# NOT on musl: a statically-linked mimalloc segfaults during init when the addon
+# is dlopen'd by a musl-libc Node, so musl falls back to the system allocator.
+[target.'cfg(not(target_env = "musl"))'.dependencies]
 mimalloc = { version = "0.1", default-features = false }
 
 [features]

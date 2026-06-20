@@ -14,7 +14,10 @@
 
 /// Route all allocations in the addon through mimalloc — the write path is
 /// dominated by many short-lived String/Vec allocations, which mimalloc services
-/// faster than the system allocator.
+/// faster than the system allocator. Skipped on musl (see Cargo.toml): a
+/// statically-linked mimalloc segfaults when the addon is dlopen'd under musl
+/// Node, so there it falls back to the system allocator.
+#[cfg(not(target_env = "musl"))]
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 

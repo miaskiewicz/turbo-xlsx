@@ -10,7 +10,7 @@ blueprint, same `turbo-*` packaging.
 | --- | --- |
 | `crates/turbo-xlsx-core` | Rust core: model → OOXML SpreadsheetML → OPC zip. **100% coverage gate.** |
 | `crates/turbo-xlsx-napi` | napi-rs binding, published as **`turbo-xlsx`** on npm. Excluded from coverage. |
-| `crates/turbo-xlsx-py` | PyO3/maturin binding, published as **`turbo-xlsx`** on PyPI (abi3 wheels). Excluded from coverage. |
+| `crates/turbo-xlsx-py` | PyO3/maturin binding, published as **`turbo-xlsx-rs`** on PyPI (abi3 wheels; import name `turbo_xlsx`). Excluded from coverage. |
 | `crates/turbo-xlsx-wasm` | wasm-bindgen browser build (`turbo-xlsx-wasm`). Excluded from coverage. |
 | `schema/` | versioned JSON Schema for the workbook model (also shipped in the npm tarball). |
 | `tools/cc-check` | cyclomatic-complexity gate (cc < 6), own workspace, excluded from coverage. |
@@ -65,12 +65,14 @@ Two independent tag prefixes (mirrors `turbo-html2pdf`):
 
 | Tag | Publishes |
 | --- | --- |
-| `vX.Y.Z` | **npm**: `turbo-xlsx` (5-platform napi matrix) + the `turbo-xlsx-wasm` browser build. Secret **`NPM_TOKEN`**. |
-| `pyvX.Y.Z` | **PyPI**: `turbo-xlsx` (maturin abi3 wheels + sdist). Secret **`PYPI_TOKEN`** (publish self-skips if unset). |
+| `vX.Y.Z` | **npm**: `turbo-xlsx` + `turbo-xlsx-parse` (5-platform napi matrix) + `turbo-xlsx-wasm` + `turbo-xlsx-wasm-parse` (browser). Secret **`NPM_TOKEN`**. Also **crates.io**: `turbo-xlsx-core`, gated on **`CARGO_REGISTRY_TOKEN`** (`release-crates.yml`). |
+| `pyvX.Y.Z` | **PyPI**: `turbo-xlsx-rs` + `turbo-xlsx-rs-parse` (maturin abi3 wheels + sdist; import name stays `turbo_xlsx` — PyPI rejects `turbo-xlsx` as too close to `turboxlsx`). Secret **`PYPI_TOKEN`** (publish self-skips if unset). |
 
-> Release workflows for wasm/py publish are not yet wired in `.github/workflows/`
-> (only CI conformance is); add `release.yml` jobs mirroring the `turbo-html2pdf`
-> `publish-napi`/`publish-wasm` and a `release-py.yml` when first shipping those.
+> All publish workflows are wired: `release.yml` (npm napi + wasm, both
+> base/parse variants), `release-py.yml` (PyPI, both variants), and
+> `release-crates.yml` (crates.io core). The musl napi build drops mimalloc (a
+> static mimalloc segfaults under musl Node) — see the `cfg(not(target_env =
+> "musl"))` gate in the napi crate.
 
 Bump the same `X.Y.Z` in **all** of these before tagging (not auto-synced):
 

@@ -6,8 +6,9 @@ nothing is released on a normal `main` push.
 
 | Tag         | Workflow                                | Publishes |
 | ----------- | --------------------------------------- | --------- |
-| `vX.Y.Z`    | `.github/workflows/release.yml`         | **npm**: `turbo-xlsx` (5-platform napi + musl) and `turbo-xlsx-wasm` (browser build) |
-| `pyvX.Y.Z`  | `.github/workflows/release-py.yml`      | **PyPI**: `turbo-xlsx` (maturin abi3 wheels + sdist) |
+| `vX.Y.Z`    | `.github/workflows/release.yml`         | **npm**: `turbo-xlsx` + `turbo-xlsx-parse` (5-platform napi + musl) and `turbo-xlsx-wasm` + `turbo-xlsx-wasm-parse` (browser) |
+| `vX.Y.Z`    | `.github/workflows/release-crates.yml`  | **crates.io**: `turbo-xlsx-core` (same tag; gated on `CARGO_REGISTRY_TOKEN`) |
+| `pyvX.Y.Z`  | `.github/workflows/release-py.yml`      | **PyPI**: `turbo-xlsx-rs` + `turbo-xlsx-rs-parse` (abi3 wheels + sdist; import `turbo_xlsx`) |
 
 ## Required repository secrets
 
@@ -15,14 +16,17 @@ Add these in **GitHub → Settings → Secrets and variables → Actions** befor
 first tag:
 
 - **`NPM_TOKEN`** — an npm **Automation** token allowed to publish public,
-  unscoped names (`turbo-xlsx`, `turbo-xlsx-wasm`).
+  unscoped names (`turbo-xlsx`, `turbo-xlsx-parse`, `turbo-xlsx-wasm`,
+  `turbo-xlsx-wasm-parse`).
 - **`PYPI_TOKEN`** — a PyPI API token. Until it is set, the PyPI `publish` job
   **self-skips** (it still builds the wheels), so the file is safe to merge.
+- **`CARGO_REGISTRY_TOKEN`** — a crates.io API token (publishes `turbo-xlsx-core`
+  on the `v*` tag). The publish step self-skips when it is unset.
 
-> crates.io is **not** wired up (the core uses a `path` dependency, so it is not
-> crates.io-publishable as-is). If you want to publish the Rust crate, switch
-> `turbo-xlsx-napi`/`-py`/`-wasm` to a versioned `turbo-xlsx-core` dependency and
-> add a `cargo publish` job. Out of scope for v0.1.0.
+> The `turbo-xlsx-core` crate is standalone (no `path` deps of its own), so it
+> publishes to crates.io cleanly; only the core is published — the bindings are
+> cdylibs shipped to npm/PyPI and the MCP server is a binary. Consumers opt into
+> the reader with `features = ["parse"]`.
 
 ## 1. Bump the version — EVERY place (NOT auto-synced)
 

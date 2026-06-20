@@ -774,7 +774,7 @@ dependencies = [
 
 [[package]]
 name = "turbo-xlsx-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "criterion",
  "itoa",
@@ -785,7 +785,7 @@ dependencies = [
 
 [[package]]
 name = "turbo-xlsx-mcp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -794,7 +794,7 @@ dependencies = [
 
 [[package]]
 name = "turbo-xlsx-napi"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "mimalloc",
  "napi",
@@ -807,7 +807,7 @@ dependencies = [
 
 [[package]]
 name = "turbo-xlsx-py"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "pyo3",
  "pythonize",
@@ -818,7 +818,7 @@ dependencies = [
 
 [[package]]
 name = "turbo-xlsx-wasm"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "js-sys",
  "serde",
