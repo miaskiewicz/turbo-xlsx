@@ -1,0 +1,26 @@
+[package]
+name = "turbo-xlsx-wasm"
+description = "Workbook model to .xlsx in the browser via WebAssembly — wasm-bindgen binding for turbo-xlsx-core."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+# A cdylib so `wasm-bindgen` / `wasm-pack` can produce the `.wasm` + JS glue.
+# rlib is kept so the crate also type-checks and links on the host (and so a
+# scoped `cargo build` / clippy can see it without the wasm target).
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# turbo-xlsx-core has no optional features and uses no randomness, so the deps
+# stay minimal: no getrandom backend, no serde_bytes. The `xlsx` bytes cross the
+# boundary as a real `js_sys::Uint8Array`.
+turbo-xlsx-core = { path = "../turbo-xlsx-core" }
+wasm-bindgen = "0.2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde-wasm-bindgen = "0.6"
+js-sys = "0.3"

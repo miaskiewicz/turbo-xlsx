@@ -1,0 +1,22 @@
+{
+  "name": "turbo-xlsx-monorepo",
+  "private": true,
+  "version": "0.0.1",
+  "license": "MIT",
+  "packageManager": "pnpm@9.0.0",
+  "workspaces": ["crates/turbo-xlsx-napi"],
+  "scripts": {
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "cc": "git ls-files '*.ts' '*.tsx' '*.mjs' '*.js' | node scripts/cc-check.js --max 5",
+    "check": "pnpm lint && pnpm format:check && pnpm cc"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "@types/node": "^20.0.0",
+    "oxlint": "^0.11.0",
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "turbo-xlsx"
+version = "0.1.0"
+description = "Native workbook-model-to-XLSX writer (PyO3 binding over the turbo-xlsx Rust core)."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "turbo-xlsx contributors" }]
+keywords = ["xlsx", "excel", "spreadsheet", "ooxml", "rust"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Office/Business :: Financial :: Spreadsheet",
+    "Topic :: Software Development :: Libraries",
+    "License :: OSI Approved :: MIT License",
+]
+
+[project.urls]
+Repository = "https://github.com/miaskiewicz/turbo-xlsx"
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.maturin]
+# Mixed Rust/Python layout: the compiled extension lands at
+# `turbo_xlsx._turbo_xlsx` next to the pure-Python `__init__.py` shim.
+manifest-path = "Cargo.toml"
+python-source = "python"
+module-name = "turbo_xlsx._turbo_xlsx"
+# Build the stable-ABI (abi3) wheel matching the crate's pyo3 features.
+features = ["pyo3/extension-module"]

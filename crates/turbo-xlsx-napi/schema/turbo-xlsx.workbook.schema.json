@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/miaskiewicz/turbo-xlsx/schema/turbo-xlsx.workbook.schema.json",
+  "title": "turbo-xlsx Workbook",
+  "description": "The structured workbook model accepted by writeFromJson / loadJson. Versioned via schemaVersion. Currency cell values are integers in minor units (e.g. cents).",
+  "type": "object",
+  "required": ["sheets"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "string", "description": "Schema version, e.g. \"1.0\"." },
+    "locale": { "type": "string", "description": "Default BCP-47 locale, e.g. \"es-MX\"." },
+    "sheets": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/sheet" } }
+  },
+  "$defs": {
+    "sheet": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 31 },
+        "columns": { "type": "array", "items": { "$ref": "#/$defs/column" } },
+        "rows": { "type": "array", "items": { "$ref": "#/$defs/row" } },
+        "merges": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Z]+[0-9]+:[A-Z]+[0-9]+$" }
+        },
+        "freeze": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rows": { "type": "integer", "minimum": 0 },
+            "cols": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "outline": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "columnsCollapsed": { "type": "boolean" } }
+        }
+      }
+    },
+    "column": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": { "type": "string" },
+        "width": { "type": "number" },
+        "outlineLevel": { "type": "integer", "minimum": 1, "maximum": 7 },
+        "hidden": { "type": "boolean" },
+        "style": { "$ref": "#/$defs/cellStyle" }
+      }
+    },
+    "row": {
+      "type": "object",
+      "required": ["cells"],
+      "additionalProperties": false,
+      "properties": {
+        "cells": { "type": "array", "items": { "$ref": "#/$defs/cell" } },
+        "outlineLevel": { "type": "integer", "minimum": 1, "maximum": 7 },
+        "height": { "type": "number" },
+        "isTotal": { "type": "boolean" }
+      }
+    },
+    "cell": {
+      "type": "object",
+      "required": ["type"],
+      "oneOf": [
+        {
+          "properties": {
+            "type": { "const": "string" },
+            "value": { "type": "string" },
+            "style": { "$ref": "#/$defs/cellStyle" }
+          },
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "number" },
+            "value": { "type": "number" },
+            "format": { "$ref": "#/$defs/numberFormat" },
+            "style": { "$ref": "#/$defs/cellStyle" }
+          },
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "currency" },
+            "value": { "type": "integer", "description": "Amount in minor units (e.g. cents)." },
+            "currency": { "$ref": "#/$defs/currencyFormat" },
+            "style": { "$ref": "#/$defs/cellStyle" }
+          },
+          "required": ["value", "currency"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "percent" },
+            "value": { "type": "number" },
+            "decimals": { "type": "integer", "minimum": 0 },
+            "style": { "$ref": "#/$defs/cellStyle" }
+          },
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "date" },
+            "value": {
+              "type": ["string", "number"],
+              "description": "ISO-8601 string or Excel serial."
+            },
+            "format": { "$ref": "#/$defs/dateFormat" },
+            "style": { "$ref": "#/$defs/cellStyle" }
+          },
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "boolean" },
+            "value": { "type": "boolean" },
+            "style": { "$ref": "#/$defs/cellStyle" }
+          },
+          "required": ["value"],
+          "additionalProperties": false
+        },
+        {
+          "properties": {
+            "type": { "const": "blank" },
+            "style": { "$ref": "#/$defs/cellStyle" }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "negative": { "enum": ["red", "parens", "minus", "red-parens"] },
+    "currencyFormat": {
+      "type": "object",
+      "required": ["code"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "description": "ISO-4217, e.g. MXN/USD/EUR/BRL." },
+        "locale": { "type": "string" },
+        "decimals": { "type": "integer", "minimum": 0 },
+        "negative": { "$ref": "#/$defs/negative" },
+        "symbol": { "type": "boolean" }
+      }
+    },
+    "numberFormat": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decimals": { "type": "integer", "minimum": 0 },
+        "grouped": { "type": "boolean" },
+        "negative": { "$ref": "#/$defs/negative" },
+        "raw": { "type": "string" }
+      }
+    },
+    "dateFormat": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["date", "datetime", "month-year"] },
+        "raw": { "type": "string" }
+      }
+    },
+    "cellStyle": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "font": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bold": { "type": "boolean" },
+            "italic": { "type": "boolean" },
+            "size": { "type": "number" },
+            "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" },
+            "name": { "type": "string" }
+          }
+        },
+        "fill": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" },
+        "align": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "horizontal": { "enum": ["left", "center", "right"] },
+            "vertical": { "enum": ["top", "middle", "bottom"] },
+            "wrap": { "type": "boolean" }
+          }
+        },
+        "border": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "top": { "$ref": "#/$defs/borderEdge" },
+            "bottom": { "$ref": "#/$defs/borderEdge" },
+            "left": { "$ref": "#/$defs/borderEdge" },
+            "right": { "$ref": "#/$defs/borderEdge" }
+          }
+        }
+      }
+    },
+    "borderEdge": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "style": { "enum": ["thin", "medium", "thick", "double"] },
+        "color": { "type": "string", "pattern": "^#?[0-9a-fA-F]{6}$" }
+      }
+    }
+  }
+}

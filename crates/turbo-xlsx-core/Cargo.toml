@@ -1,0 +1,44 @@
+[package]
+name = "turbo-xlsx-core"
+description = "Native structured-workbook-model to XLSX (OOXML SpreadsheetML) writer (core crate)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+# The cyclomatic-complexity gate (cc < 6) is enforced by `tools/cc-check`, which
+# matches the TS gate in `scripts/cc-check.js`.
+
+[features]
+# Re-exports internal phase entry points (styles/worksheet/zip/crc) so the
+# hotspot harness can time each in isolation. OFF by default → not compiled into
+# the shipped library or the coverage build.
+bench-internals = []
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+# Fast, allocation-free integer formatting for the per-cell hot loop (row/column
+# refs, style indices, integer values). Already in the serde_json tree.
+itoa = "1"
+
+[dev-dependencies]
+serde_json = { workspace = true }
+criterion = "0.5"
+
+# Criterion benchmark harness measuring the two shapes the perf targets call out
+# (a styled 1k-row batch write and a 50k-row streamed write). Excluded from the
+# default `cargo test` harness; invoke with `cargo bench`.
+[[bench]]
+name = "write"
+harness = false
+
+# Phase-by-phase hotspot profiler. Needs the `bench-internals` feature to reach
+# the internal phase entry points. Run: `cargo bench --features bench-internals --bench hotspot`.
+[[bench]]
+name = "hotspot"
+harness = false
+required-features = ["bench-internals"]

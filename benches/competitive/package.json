@@ -1,0 +1,16 @@
+{
+  "name": "turbo-xlsx-competitive-bench",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Competitive perf + conformance harness: turbo-xlsx vs exceljs vs SheetJS (xlsx).",
+  "scripts": {
+    "perf": "node src/perf.mjs",
+    "conformance": "node src/conformance.mjs",
+    "all": "node src/perf.mjs && node src/conformance.mjs"
+  },
+  "devDependencies": {
+    "exceljs": "^4.4.0",
+    "xlsx": "^0.18.5"
+  }
+}

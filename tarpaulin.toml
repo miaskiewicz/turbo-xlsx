@@ -1,0 +1,24 @@
+# Coverage gate for the shipped crates. Dev tooling (tools/*) is its own
+# workspace and not part of the product surface. The N-API binding is a thin
+# cdylib shim over the covered core — a Node addon tarpaulin cannot
+# line-instrument on the host — so it is excluded from the coverage surface and
+# from the tarpaulin build (its native-link step never runs here).
+[default]
+workspace = true
+exclude = ["turbo-xlsx-napi", "turbo-xlsx-py", "turbo-xlsx-wasm"]
+# Pin the LLVM source-based engine on EVERY platform. tarpaulin's `Auto` engine
+# picks `Llvm` on macOS but `Ptrace` on Linux, and the two disagree about line
+# attribution and whether the integration `tests/*.rs` files belong in the
+# denominator — so forcing `Llvm` makes the host and the Linux runner produce
+# the same numbers. Needs `llvm-tools-preview` (added to the toolchain in the
+# coverage job of .github/workflows/ci.yml).
+engine = "Llvm"
+exclude-files = [
+    "tools/*",
+    "benches/*",
+    "crates/turbo-xlsx-core/benches/*",
+    "crates/turbo-xlsx-napi/*",
+    "crates/turbo-xlsx-py/*",
+    "crates/turbo-xlsx-wasm/*",
+]
+fail-under = 100.0

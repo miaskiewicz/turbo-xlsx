@@ -1,0 +1,196 @@
+# =============================================================================
+# Release workflow — tag-gated npm publish for the turbo-xlsx packages.
+#
+# Publishes, on a `v*` tag (first release: v0.1.0):
+#   1. turbo-xlsx       — single bundled napi package; every platform *.node ships
+#                         inside it and index.js loads the matching local one.
+#   2. turbo-xlsx-wasm  — the in-browser package (wasm-pack `--target web`).
+#
+# Requires repository secret NPM_TOKEN (a Classic Automation token allowed to
+# publish public unscoped npm names).
+# =============================================================================
+
+name: Release
+
+on:
+  push:
+    tags: ['v*'] # lockstep, tag-driven release. First tag: v0.1.0.
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Build napi prebuilt binaries across platforms.
+  # ---------------------------------------------------------------------------
+  build-napi:
+    name: build turbo-xlsx ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-latest, target: aarch64-unknown-linux-gnu }
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Linux aarch64 cross toolchain
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+          echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Install JS deps (no postinstall build)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      # `napi build --platform` emits `turbo-xlsx-napi.<platform>.node` next to
+      # index.js (the napi package.json carries the `napi` config).
+      - name: Build native addon
+        working-directory: crates/turbo-xlsx-napi
+        run: pnpm exec napi build --platform --release --target ${{ matrix.target }} --dts index.generated.d.ts --js index.generated.js
+      - name: Upload prebuilt binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: napi-bindings-${{ matrix.target }}
+          path: crates/turbo-xlsx-napi/*.node
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 1b. Build the musl napi binary in a REAL musl (Alpine) container, and smoke
+  #     it under musl Node so a fake-musl (glibc-linked) artifact never ships.
+  # ---------------------------------------------------------------------------
+  build-napi-musl:
+    name: build turbo-xlsx x86_64-unknown-linux-musl
+    runs-on: ubuntu-latest
+    container: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trust the workspace (container runs as root)
+        run: git config --global --add safe.directory '*'
+      - name: Install pnpm
+        run: npm install -g pnpm@9.0.0 --force
+      - name: Install JS deps (no postinstall build)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Build native addon (musl)
+        working-directory: crates/turbo-xlsx-napi
+        run: pnpm exec napi build --platform --release --target x86_64-unknown-linux-musl --dts index.generated.d.ts --js index.generated.js
+      - name: Smoke gate — musl .node must load AND write under musl Node
+        working-directory: crates/turbo-xlsx-napi
+        run: |
+          test -f turbo-xlsx-napi.linux-x64-musl.node || { echo "musl .node missing"; exit 1; }
+          node -e "const m=require('./index.js'); const buf=m.write({sheets:[{name:'S',rows:[{cells:[{type:'string',value:'musl'}]}]}]}); if(!Buffer.isBuffer(buf)||buf.subarray(0,2).toString('latin1')!=='PK'){console.error('not an xlsx');process.exit(1)}; console.log('musl load+write OK',buf.length,'bytes');"
+      - name: Upload prebuilt binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: napi-bindings-x86_64-unknown-linux-musl
+          path: crates/turbo-xlsx-napi/*.node
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 2. Quality gate before any publish.
+  # ---------------------------------------------------------------------------
+  gate:
+    name: gate (rust fmt/clippy/test)
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+
+  # ---------------------------------------------------------------------------
+  # 3. Publish turbo-xlsx — single bundled package (all platform *.node inside).
+  # ---------------------------------------------------------------------------
+  publish-napi:
+    name: publish turbo-xlsx
+    needs: [build-napi, build-napi-musl, gate]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Download all prebuilt binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: napi-bindings-*
+          path: artifacts
+      - name: Bundle binaries into the package root
+        run: |
+          DEST=crates/turbo-xlsx-napi
+          find artifacts -name '*.node' -exec cp {} "$DEST"/ \;
+          ls -1 "$DEST"/*.node
+      - name: Guard — musl binary must be real musl (no glibc loader/symbols)
+        working-directory: crates/turbo-xlsx-napi
+        run: |
+          f=turbo-xlsx-napi.linux-x64-musl.node
+          test -f "$f" || { echo "missing $f"; exit 1; }
+          if strings -a "$f" | grep -qE 'ld-linux-x86-64\.so\.2|GLIBC_[0-9]'; then
+            echo "FAIL: $f is glibc-linked, not musl — refusing to publish"; exit 1
+          fi
+          echo "OK: $f is musl-linked"
+      - name: Publish turbo-xlsx
+        run: npm publish --access public --ignore-scripts
+        working-directory: crates/turbo-xlsx-napi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # 4. Publish turbo-xlsx-wasm — the in-browser package. Independent of napi.
+  # ---------------------------------------------------------------------------
+  publish-wasm:
+    name: publish turbo-xlsx-wasm
+    needs: [gate]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Build the browser package
+        run: wasm-pack build crates/turbo-xlsx-wasm --target web --out-dir pkg --release
+      - name: Stamp package name + version from the tag
+        working-directory: crates/turbo-xlsx-wasm/pkg
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json'));p.name='turbo-xlsx-wasm';p.version='$VERSION';p.repository={type:'git',url:'git+https://github.com/miaskiewicz/turbo-xlsx.git'};fs.writeFileSync('package.json',JSON.stringify(p,null,2));console.log('publishing',p.name,p.version)"
+      - name: Publish turbo-xlsx-wasm
+        run: npm publish --access public
+        working-directory: crates/turbo-xlsx-wasm/pkg
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

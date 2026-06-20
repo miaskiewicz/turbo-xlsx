@@ -1,0 +1,60 @@
+{
+  "name": "turbo-xlsx",
+  "version": "0.1.0",
+  "description": "Fast native structured-workbook-model to formatted XLSX for Node — no headless office, accountant-grade number formats, streaming.",
+  "license": "MIT",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "require": "./index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "*.node",
+    "schema/*.json",
+    "build.rs",
+    "Cargo.toml",
+    "src/*.rs",
+    "LICENSE",
+    "README.md"
+  ],
+  "napi": {
+    "name": "turbo-xlsx-napi",
+    "triples": {
+      "defaults": false,
+      "additional": [
+        "x86_64-unknown-linux-gnu",
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-apple-darwin",
+        "x86_64-pc-windows-msvc"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "napi build --platform --release --dts index.generated.d.ts --js index.generated.js",
+    "build:debug": "napi build --platform --dts index.generated.d.ts --js index.generated.js",
+    "build:cargo": "cargo build -p turbo-xlsx-napi --release && node scripts/copy-addon.mjs",
+    "test": "node --test __test__/*.test.mjs"
+  },
+  "keywords": ["xlsx", "spreadsheet", "excel", "ooxml", "napi", "report", "currency"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/miaskiewicz/turbo-xlsx.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.18.4"
+  }
+}

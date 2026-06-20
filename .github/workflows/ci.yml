@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  rust:
+    name: Rust (fmt, clippy, test, coverage)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # llvm-tools-preview backs tarpaulin's `Llvm` engine (pinned in
+          # tarpaulin.toml so Linux matches the host's source-based coverage).
+          components: rustfmt, clippy, llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+      - name: Complexity gate (cc < 6)
+        run: cargo run --manifest-path tools/cc-check/Cargo.toml -- --max 5 crates
+      - name: Coverage (100% gate)
+        run: |
+          cargo install cargo-tarpaulin --locked
+          cargo tarpaulin --out Xml   # excludes + fail-under come from tarpaulin.toml
+
+  js:
+    name: JS/TS (oxlint, biome)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format:check
+
+  conformance:
+    name: Binding conformance (napi + wasm + py)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - run: pnpm install --frozen-lockfile
+      # Build the SHIPPED addon, then assert the JS surface against it.
+      - name: Build napi addon
+        run: |
+          cargo build -p turbo-xlsx-napi --release
+          node crates/turbo-xlsx-napi/scripts/copy-addon.mjs
+      - name: napi conformance + e2e
+        run: node --test crates/turbo-xlsx-napi/__test__/*.test.mjs
+      - name: Build wasm pkg
+        run: wasm-pack build crates/turbo-xlsx-wasm --target nodejs --out-dir pkg-node
+      - name: wasm conformance
+        run: node --test crates/turbo-xlsx-wasm/__test__/conformance.test.mjs
+      - name: Build + test python binding
+        # maturin >=1.14 refuses `develop` without an active virtualenv, so spin
+        # up a throwaway .venv and run the build + tests inside it.
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python3 -m pip install --upgrade pip maturin pytest
+          maturin develop --manifest-path crates/turbo-xlsx-py/Cargo.toml
+          python3 -m pytest crates/turbo-xlsx-py/tests -q
