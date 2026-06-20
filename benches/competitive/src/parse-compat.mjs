@@ -5,12 +5,7 @@
 // TRUE/FALSE, blanks to ""). Exit non-zero on any mismatch.
 
 import { createRequire } from "node:module";
-import {
-  readSheetJS,
-  sampleGrid,
-  viaExcelJS,
-  viaSheetJS,
-} from "./parse-fixtures.mjs";
+import { readSheetJS, sampleGrid, viaExcelJS, viaSheetJS } from "./parse-fixtures.mjs";
 
 const require = createRequire(import.meta.url);
 const turbo = require("../../../crates/turbo-xlsx-napi/index.js");
@@ -65,12 +60,16 @@ async function main() {
     const misses = diff(turboGridOf(buf), readSheetJS(buf));
     const cells = grid.length * grid[0].length;
     if (misses.length === 0) {
-      console.log(`✓ ${writer.padEnd(8)} ${cells} cells parsed identically (DEFLATE, ${buf.length}B)`);
+      console.log(
+        `✓ ${writer.padEnd(8)} ${cells} cells parsed identically (DEFLATE, ${buf.length}B)`,
+      );
     } else {
       failed++;
       console.log(`✗ ${writer.padEnd(8)} ${misses.length}/${cells} cell(s) differ:`);
       for (const m of misses.slice(0, 8)) {
-        console.log(`    [r${m.r},c${m.c}] turbo=${JSON.stringify(m.turbo)} ref=${JSON.stringify(m.ref)}`);
+        console.log(
+          `    [r${m.r},c${m.c}] turbo=${JSON.stringify(m.turbo)} ref=${JSON.stringify(m.ref)}`,
+        );
       }
     }
   }
@@ -78,7 +77,9 @@ async function main() {
   // Also verify the CSV + Markdown serializers render without throwing.
   const csv = turbo.parse(viaSheetJS(grid), { format: "csv" });
   const md = turbo.parse(viaSheetJS(grid), { format: "md" });
-  console.log(`\nserializers: csv ${csv.length}B, markdown ${md.length}B (both non-empty: ${csv.length > 0 && md.length > 0})`);
+  console.log(
+    `\nserializers: csv ${csv.length}B, markdown ${md.length}B (both non-empty: ${csv.length > 0 && md.length > 0})`,
+  );
 
   if (failed > 0) {
     console.error(`\n${failed} writer(s) mismatched — parser is wrong somewhere.`);

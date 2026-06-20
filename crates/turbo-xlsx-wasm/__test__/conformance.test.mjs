@@ -69,7 +69,12 @@ test("createWriter + writeRowsJson throughput path", { skip: !wasm }, () => {
 test("parse round-trips (only in the parse build)", { skip: !wasm || !wasm.parse }, () => {
   const w = wasm.createWriter(undefined);
   w.startSheet({ name: "S" });
-  w.writeRow({ cells: [{ type: "string", value: "a" }, { type: "number", value: 3.5 }] });
+  w.writeRow({
+    cells: [
+      { type: "string", value: "a" },
+      { type: "number", value: 3.5 },
+    ],
+  });
   w.endSheet();
   const xlsx = w.finish().xlsx;
   const grid = JSON.parse(wasm.parse(xlsx, undefined));

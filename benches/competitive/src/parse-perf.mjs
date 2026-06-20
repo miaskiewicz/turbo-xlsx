@@ -11,7 +11,9 @@ const require = createRequire(import.meta.url);
 const turbo = require("../../../crates/turbo-xlsx-napi/index.js");
 
 if (typeof turbo.parse !== "function") {
-  console.error("turbo.parse is unavailable — build with `--features parse` (see parse-compat.mjs).");
+  console.error(
+    "turbo.parse is unavailable — build with `--features parse` (see parse-compat.mjs).",
+  );
   process.exit(2);
 }
 

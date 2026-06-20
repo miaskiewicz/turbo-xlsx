@@ -17,7 +17,7 @@ export function sampleGrid() {
   return [
     ["id", "name", "amount", "ratio", "active", "score", "note"],
     [1, "Alice", 1234.56, 0.125, true, 88, "repeat"],
-    [2, 'O’Brien, "Bob"', -42, 0, false, -1.5, "commas, \"quotes\" ☃"],
+    [2, 'O’Brien, "Bob"', -42, 0, false, -1.5, 'commas, "quotes" ☃'],
     [3, "", 0.1, 1, true, 0, "repeat"],
     [4, "Zoë", 9999999.99, 0.9999, false, 100000, "tail"],
   ];
