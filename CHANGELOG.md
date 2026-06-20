@@ -4,6 +4,31 @@ All notable changes to **turbo-xlsx** are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] — 2026-06-21
+
+### Performance
+
+- **Parser is now ~1.85× faster than [calamine](https://crates.io/crates/calamine)**
+  (was ~0.95× parity) — a 50k-row read dropped from ~159 ms to ~55 ms (~2.9×),
+  profile-guided by the new `benches/parse-native` phase profiler. Changes, all in
+  the dependency-free parser:
+  - **Zero-copy borrowing XML tokenizer**: tag names, attribute names and unescaped
+    text borrow the input as `&str`; values are `Cow`, owned only when an
+    `&entity;` actually has to be decoded. Replaces a `String` allocation per token.
+  - **Inline-4 attribute store**: a tag's attributes live in a stack array (OOXML
+    tags carry ≤ a few), removing the per-cell `Vec` allocation.
+  - **Copyable cell-type tag**: the cell `t` attribute decodes to a `Copy` enum,
+    not a per-cell `String`.
+  - **Pre-sized inflate output** + borrowed (not copied) UTF-8 part views.
+- Cell values remain verified **cell-for-cell** against SheetJS / ExcelJS / openpyxl,
+  and turbo's reader is cross-checked against calamine in `benches/parse-native`.
+
+### Added
+
+- `benches/parse-native`: a standalone native Rust harness — a head-to-head read
+  benchmark vs calamine and a `parse-hotspot` phase profiler (unzip+inflate vs
+  XML+value-build). Its own workspace so calamine/zip stay out of the shipped lock.
+
 ## [0.1.1] — 2026-06-21
 
 First working multi-registry release. 0.1.0's npm-napi and PyPI publishes failed
@@ -87,5 +112,6 @@ shipped to **npm** (`turbo-xlsx`), **PyPI** (`turbo-xlsx`), and the **browser**
   formulas, no cross-sheet references, no charts, no embedded images, no `.xls`.
 - `WriteOptions.password` is accepted but a no-op (XLSX encryption is v2).
 
+[0.1.2]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.2
 [0.1.1]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.1
 [0.1.0]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.0

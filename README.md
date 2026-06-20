@@ -303,17 +303,21 @@ several times faster reading the same compressed bytes:
 |---|---|---|
 | **turbo-xlsx** vs **SheetJS** (Node) | **3.1×** faster | **4.0×** faster |
 | **turbo-xlsx** vs **openpyxl** (Python) | **8.3×** faster | **9.7×** faster |
-| **turbo-xlsx** vs **calamine** (native Rust) | **0.97×** (parity) | **0.93–0.98×** (parity) |
+| **turbo-xlsx** vs **calamine** (native Rust) | **~1.9×** faster | **~1.85×** faster |
 
 (Node 24 / Python 3, darwin/arm64, release builds — indicative, reproduce locally.)
 
-Against [`calamine`](https://crates.io/crates/calamine) — the fast Rust reader, the
-real yardstick — turbo is at **parity** (a few percent behind), despite being a
-dependency-free hand-rolled inflater + zip reader + XML tokenizer. A native
-[`benches/parse-native`](benches/parse-native) harness runs the head-to-head and a
-**phase profiler** (`parse-hotspot`): it attributes **~83%** of parse time to the
-**XML tokenize + value-build** stage and only ~17% to unzip+inflate, so that XML
-stage — not decompression — is where any push past calamine has to come from.
+turbo reads faster than [`calamine`](https://crates.io/crates/calamine) — the
+fast Rust reader, the real yardstick — despite being a dependency-free hand-rolled
+inflater + zip reader + XML tokenizer. It got there profile-guided, via the
+[`benches/parse-native`](benches/parse-native) phase profiler (`parse-hotspot`,
+which splits unzip+inflate from XML+value-build): a **zero-copy borrowing
+tokenizer** (tag/attr/text slices borrow the input; `Cow` allocates only to decode
+an `&entity;`), an **inline-4 attribute store** (no per-cell `Vec`), a copyable
+cell-type tag (no per-cell `String`), and **pre-sized inflate output**. Together
+those cut a 50k-row read from ~159 ms to **~55 ms** (~2.9×), flipping the
+calamine comparison from ~0.95× to ~1.85×. Cell values are still verified
+**cell-for-cell** against SheetJS / ExcelJS / openpyxl.
 
 ```sh
 # Node: build the parse-enabled addon, then run compat + perf

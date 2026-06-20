@@ -32,9 +32,9 @@ cargo run --release --manifest-path benches/parse-native/Cargo.toml
  50000 rows (1133KB deflated, 200004 cells): turbo 142ms   calamine 134ms   -> 0.93x
 ```
 
-turbo-xlsx is at **~0.93–0.98× calamine** — i.e. **parity** (calamine a few percent
-faster), which is a strong result for a hand-rolled, zero-dependency inflater + zip
-reader + XML tokenizer going up against a mature, widely-optimized crate. Numbers
+turbo-xlsx reads **~1.85–1.9× faster than calamine** — a hand-rolled,
+zero-dependency inflater + zip reader + XML tokenizer beating a mature, widely-used
+crate. (Earlier it was at ~0.95× parity; the profiler below drove the win.) Numbers
 are indicative and machine-specific — reproduce locally.
 
 ## Hotspot profiler (`parse-hotspot`)
@@ -51,14 +51,18 @@ cargo run --release --bin parse-hotspot --manifest-path benches/parse-native/Car
 - **Phase B — XML + value-build** (full `parse` minus phase A): tokenize the
   sheet/shared-strings XML and materialize typed cell values.
 
-Finding (darwin/arm64): **phase B is ~83%** of parse time, phase A only ~17%. So
-the path to beating calamine is the **XML tokenizer + number/value parsing**, not
-the inflater — that is where the remaining few-percent gap lives.
+This profiler **drove the optimization** that put turbo ahead of calamine. The
+first run attributed ~83% of parse time to phase B, so that is where the work went:
+a zero-copy borrowing tokenizer, an inline-4 attribute store, a copyable cell-type
+tag, and pre-sized inflate output. Before → after on 50k rows:
 
 ```
-50000 rows (1133KB deflated):
-  A unzip+inflate :   27ms  (17% of turbo)
-  B xml+value     :  133ms  (83% of turbo)
-  ─ turbo total   :  159ms
-    calamine total:  156ms   (turbo is 0.98x calamine)
+BEFORE                              AFTER
+A unzip+inflate :   27ms  (17%)     A unzip+inflate :  19ms  (35%)
+B xml+value     :  133ms  (83%)     B xml+value     :  36ms  (65%)
+─ turbo total   :  159ms            ─ turbo total   :  55ms
+  calamine      :  156ms (0.98x)      calamine      : 103ms (1.85x faster)
 ```
+
+Phase B fell ~3.7× and the total ~2.9×. With B now much cheaper, unzip+inflate is
+the larger relative slice — the next place to look if more is wanted.

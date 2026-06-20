@@ -149,7 +149,12 @@ const DIST_EXTRA: [u32; 30] = [
 /// Decompress a complete DEFLATE stream.
 pub fn inflate(data: &[u8]) -> PResult<Vec<u8>> {
     let mut r = BitReader::new(data);
-    let mut out = Vec::new();
+    // OOXML XML deflates ~6–12×, so reserve ~8× the compressed size up front: the
+    // output is filled one byte at a time (literals + LZ77 back-copies), and a
+    // zero-capacity Vec would otherwise re-double (and memcpy) ~20+ times on a
+    // multi-megabyte sheet. Bounded so a tiny/garbage stream can't over-reserve.
+    let guess = data.len().saturating_mul(8).min(64 << 20);
+    let mut out = Vec::with_capacity(guess);
     while !inflate_one_block(&mut r, &mut out)? {}
     Ok(out)
 }

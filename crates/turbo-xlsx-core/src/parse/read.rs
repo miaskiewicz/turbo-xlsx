@@ -2,6 +2,7 @@
 //! sheet names + relationships, the shared-string table, and which styles are
 //! dates, then walk each worksheet into rows of typed [`CellValue`]s.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use super::unzip::{read_zip, Entry};
@@ -55,9 +56,10 @@ fn part<'a>(entries: &'a [Entry], name: &str) -> Option<&'a [u8]> {
         .map(|e| e.data.as_slice())
 }
 
-/// Lossy UTF-8 of a part's bytes.
-fn xml_of(bytes: &[u8]) -> String {
-    String::from_utf8_lossy(bytes).into_owned()
+/// A part's bytes as `&str` — **borrowed** when already valid UTF-8 (the OOXML
+/// case), so the whole part is not copied just to tokenize it.
+fn xml_of(bytes: &[u8]) -> Cow<'_, str> {
+    String::from_utf8_lossy(bytes)
 }
 
 /// The sheet `(name, r:id)` list from `xl/workbook.xml`, in tab order.
@@ -127,8 +129,8 @@ fn shared_event(out: &mut Vec<String>, buf: &mut String, in_t: &mut bool, ev: Ev
         Event::Open(tag) if tag.name == "si" => buf.clear(),
         Event::Open(tag) if tag.name == "t" => *in_t = true,
         Event::Text(t) if *in_t => buf.push_str(&t),
-        Event::Close(name) if name == "t" => *in_t = false,
-        Event::Close(name) if name == "si" => out.push(std::mem::take(buf)),
+        Event::Close("t") => *in_t = false,
+        Event::Close("si") => out.push(std::mem::take(buf)),
         _ => {}
     }
 }
@@ -158,7 +160,7 @@ fn style_event(
 ) {
     match ev {
         Event::Open(tag) if tag.name == "cellXfs" => *in_cellxfs = true,
-        Event::Close(name) if name == "cellXfs" => *in_cellxfs = false,
+        Event::Close("cellXfs") => *in_cellxfs = false,
         Event::Open(tag) if *in_cellxfs && tag.name == "xf" => out.push(xf_is_date(&tag, customs)),
         _ => {}
     }
@@ -251,13 +253,34 @@ fn parse_sheet_xml(xml: &str, shared: &[String], date_xf: &[bool]) -> Vec<Vec<Ce
     s.rows
 }
 
+/// A cell's `t` attribute, decoded to a copyable tag (so per-cell type tracking
+/// costs no allocation).
+#[derive(Clone, Copy, Default, PartialEq)]
+enum CType {
+    #[default]
+    Num,
+    Shared,
+    Bool,
+    Str,
+}
+
+/// Classify a cell's `t` attribute.
+fn ctype_of(t: Option<&str>) -> CType {
+    match t {
+        Some("s") => CType::Shared,
+        Some("b") => CType::Bool,
+        Some("inlineStr" | "str" | "e") => CType::Str,
+        _ => CType::Num,
+    }
+}
+
 /// Mutable state while walking a worksheet.
 #[derive(Default)]
 struct SheetState {
     rows: Vec<Vec<CellValue>>,
     row: Vec<CellValue>,
     col: usize,
-    ctype: String,
+    ctype: CType,
     cstyle: usize,
     text: bool,
     invalue: bool,
@@ -272,10 +295,10 @@ fn sheet_event(s: &mut SheetState, shared: &[String], date_xf: &[bool], ev: Even
         Event::Open(tag) if tag.name == "v" => start_value(s),
         Event::Open(tag) if tag.name == "t" => s.text = true,
         Event::Text(t) if s.invalue || s.text => s.vbuf.push_str(&t),
-        Event::Close(name) if name == "v" => s.invalue = false,
-        Event::Close(name) if name == "t" => s.text = false,
-        Event::Close(name) if name == "c" => end_cell(s, shared, date_xf),
-        Event::Close(name) if name == "row" => s.rows.push(std::mem::take(&mut s.row)),
+        Event::Close("v") => s.invalue = false,
+        Event::Close("t") => s.text = false,
+        Event::Close("c") => end_cell(s, shared, date_xf),
+        Event::Close("row") => s.rows.push(std::mem::take(&mut s.row)),
         _ => {}
     }
 }
@@ -296,7 +319,7 @@ fn open_cell(s: &mut SheetState, tag: &Tag, shared: &[String], date_xf: &[bool])
 
 /// Begin a `<c>` cell: record its type/style/column and reset the buffer.
 fn begin_cell(s: &mut SheetState, tag: &Tag) {
-    s.ctype = tag.attr("t").unwrap_or("").to_string();
+    s.ctype = ctype_of(tag.attr("t"));
     s.cstyle = tag.attr("s").and_then(|v| v.parse().ok()).unwrap_or(0);
     s.col = match tag.attr("r") {
         Some(rf) => col_of_ref(rf),
@@ -309,7 +332,7 @@ fn begin_cell(s: &mut SheetState, tag: &Tag) {
 
 /// End a `<c>` cell: build its value, padding the row up to its column.
 fn end_cell(s: &mut SheetState, shared: &[String], date_xf: &[bool]) {
-    let value = build_value(&s.ctype, s.cstyle, &s.vbuf, shared, date_xf);
+    let value = build_value(s.ctype, s.cstyle, &s.vbuf, shared, date_xf);
     while s.row.len() < s.col {
         s.row.push(CellValue::Empty);
     }
@@ -328,19 +351,19 @@ fn col_of_ref(rf: &str) -> usize {
     col.saturating_sub(1)
 }
 
-/// Build a typed value from a cell's `t`, style, and text buffer.
+/// Build a typed value from a cell's type, style, and text buffer.
 fn build_value(
-    ctype: &str,
+    ctype: CType,
     style: usize,
     vbuf: &str,
     shared: &[String],
     date_xf: &[bool],
 ) -> CellValue {
     match ctype {
-        "s" => shared_value(vbuf, shared),
-        "inlineStr" | "str" | "e" => text_or_empty(vbuf),
-        "b" => CellValue::Bool(vbuf == "1"),
-        _ => number_value(vbuf, style, date_xf),
+        CType::Shared => shared_value(vbuf, shared),
+        CType::Str => text_or_empty(vbuf),
+        CType::Bool => CellValue::Bool(vbuf == "1"),
+        CType::Num => number_value(vbuf, style, date_xf),
     }
 }
 
