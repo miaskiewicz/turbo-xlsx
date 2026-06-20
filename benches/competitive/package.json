@@ -7,6 +7,8 @@
   "scripts": {
     "perf": "node src/perf.mjs",
     "conformance": "node src/conformance.mjs",
+    "parse:compat": "node src/parse-compat.mjs",
+    "parse:perf": "node src/parse-perf.mjs",
     "all": "node src/perf.mjs && node src/conformance.mjs"
   },
   "devDependencies": {

@@ -66,6 +66,17 @@ test("createWriter + writeRowsJson throughput path", { skip: !wasm }, () => {
   assert.ok(result.xlsx instanceof Uint8Array && result.xlsx[0] === 0x50);
 });
 
+test("parse round-trips (only in the parse build)", { skip: !wasm || !wasm.parse }, () => {
+  const w = wasm.createWriter(undefined);
+  w.startSheet({ name: "S" });
+  w.writeRow({ cells: [{ type: "string", value: "a" }, { type: "number", value: 3.5 }] });
+  w.endSheet();
+  const xlsx = w.finish().xlsx;
+  const grid = JSON.parse(wasm.parse(xlsx, undefined));
+  assert.deepEqual(grid.sheets[0].rows[0], ["a", 3.5]);
+  assert.ok(wasm.parse(xlsx, { format: "csv" }).startsWith("a,3.5"));
+});
+
 test("duplicate sheet name rejects with DuplicateSheetName", { skip: !wasm }, () => {
   const dup = {
     sheets: [

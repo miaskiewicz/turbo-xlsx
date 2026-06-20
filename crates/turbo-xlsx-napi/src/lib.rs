@@ -120,6 +120,54 @@ pub fn create_writer(opts: Option<JsWriteOptions>) -> WorkbookWriter {
     WorkbookWriter::create(opts)
 }
 
+/// Options for `parse`: `format` is `"json"` (default) / `"csv"` / `"md"`;
+/// `typed` selects the round-trippable typed JSON over the values grid; `sheet`
+/// picks a sheet by name for csv/md (default first). Only the `turbo-xlsx-parse`
+/// build has parse.
+#[cfg(feature = "parse")]
+#[napi(object)]
+#[derive(Default)]
+pub struct JsParseOptions {
+    pub format: Option<String>,
+    pub sheet: Option<String>,
+    pub typed: Option<bool>,
+}
+
+/// Read an `.xlsx` Buffer into JSON / CSV / Markdown (the `parse` feature).
+#[cfg(feature = "parse")]
+#[napi]
+pub fn parse(data: Buffer, opts: Option<JsParseOptions>) -> napi::Result<String> {
+    use core::parse::serialize;
+    let wb = core::parse::parse(data.as_ref()).map_err(|e| errors::parse_fault(e.to_string()))?;
+    let o = opts.unwrap_or_default();
+    match o.format.as_deref().unwrap_or("json") {
+        "json" if o.typed == Some(true) => Ok(serialize::to_json_typed(&wb)),
+        "json" => Ok(serialize::to_json_grid(&wb)),
+        "csv" => Ok(serialize::to_csv(pick_sheet(&wb, o.sheet.as_deref())?)),
+        "md" | "markdown" => Ok(serialize::to_markdown(pick_sheet(&wb, o.sheet.as_deref())?)),
+        other => Err(errors::schema(format!("unknown parse format {other:?}"))),
+    }
+}
+
+/// Select a sheet by name (default the first) for the single-sheet formats.
+#[cfg(feature = "parse")]
+fn pick_sheet<'a>(
+    wb: &'a core::parse::ParsedWorkbook,
+    name: Option<&str>,
+) -> napi::Result<&'a core::parse::ParsedSheet> {
+    match name {
+        Some(n) => wb
+            .sheets
+            .iter()
+            .find(|s| s.name == n)
+            .ok_or_else(|| errors::schema(format!("no sheet named {n:?}"))),
+        None => wb
+            .sheets
+            .first()
+            .ok_or_else(|| errors::schema("workbook has no sheets")),
+    }
+}
+
 /// A row-by-row streaming writer. Push a sheet, stream rows, end the sheet,
 /// finish the package. See the core [`core::WorkbookWriter`].
 #[napi]

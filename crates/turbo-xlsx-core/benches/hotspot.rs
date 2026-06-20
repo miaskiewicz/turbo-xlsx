@@ -13,7 +13,7 @@ use std::hint::black_box;
 
 use turbo_xlsx_core::internals::{crc32, package as package_phase, write_sheet, StyleTable};
 use turbo_xlsx_core::{
-    package, Cell, CellStyle, CurrencyFormat, Diagnostics, Font, Row, Sheet, Workbook, WriteOptions,
+    Cell, CellStyle, CurrencyFormat, Diagnostics, Font, Row, Sheet, Workbook, WriteOptions,
 };
 
 const ROWS: usize = 50_000;

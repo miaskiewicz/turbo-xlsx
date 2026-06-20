@@ -117,6 +117,17 @@ const write = guard((workbook, opts) => toBuffer(native.write(workbook, opts)));
 const writeFromJson = guard((input, opts) => toBuffer(native.writeFromJson(input, opts)));
 const writeRows = guard((input, opts) => toBuffer(native.writeRows(input, opts)));
 
+// Parse (xlsx -> JSON/CSV/Markdown) ships only in the `turbo-xlsx-parse` build;
+// in the lean `turbo-xlsx` package `native.parse` is absent and `parse` throws.
+const parse =
+  typeof native.parse === "function"
+    ? guard((data, opts) => native.parse(data, opts))
+    : () => {
+        throw new Error(
+          "parse is not available in this build — install the `turbo-xlsx-parse` package",
+        );
+      };
+
 // --- streaming writer --------------------------------------------------------
 /** Wrap a native streaming writer so each method rethrows a typed error. */
 function wrapWriter(w) {
@@ -225,6 +236,7 @@ module.exports = {
   writeRows,
   createWriter,
   createWorkbook,
+  parse,
   TurboXlsxError,
 };
 module.exports.default = module.exports;

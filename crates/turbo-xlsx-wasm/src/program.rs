@@ -145,3 +145,51 @@ fn fatal_err(e: core::TurboXlsxError) -> JsValue {
 fn finished_err() -> JsValue {
     JsError::schema("writer already finished").into_jsvalue()
 }
+
+// ---- parse (xlsx → JSON/CSV/Markdown) — the `parse` feature -----------------
+
+/// Options for `parse`: `format` (`"json"`/`"csv"`/`"md"`), `sheet` (name for
+/// csv/md), `typed` (round-trippable JSON model).
+#[cfg(feature = "parse")]
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct ParseOpts {
+    format: Option<String>,
+    sheet: Option<String>,
+    typed: bool,
+}
+
+/// Read an `.xlsx` (bytes) into a JSON / CSV / Markdown string.
+#[cfg(feature = "parse")]
+#[wasm_bindgen]
+pub fn parse(data: &[u8], opts: JsValue) -> Result<String, JsValue> {
+    use core::parse::serialize;
+    let wb = core::parse::parse(data).map_err(|e| JsError::schema(e.to_string()).into_jsvalue())?;
+    let o: ParseOpts = serde_wasm_bindgen::from_value(opts).unwrap_or_default();
+    match o.format.as_deref().unwrap_or("json") {
+        "json" if o.typed => Ok(serialize::to_json_typed(&wb)),
+        "json" => Ok(serialize::to_json_grid(&wb)),
+        "csv" => Ok(serialize::to_csv(parse_pick(&wb, o.sheet.as_deref())?)),
+        "md" | "markdown" => Ok(serialize::to_markdown(parse_pick(&wb, o.sheet.as_deref())?)),
+        other => Err(JsError::schema(format!("unknown parse format {other:?}")).into_jsvalue()),
+    }
+}
+
+/// Select a sheet by name (default the first) for the single-sheet formats.
+#[cfg(feature = "parse")]
+fn parse_pick<'a>(
+    wb: &'a core::parse::ParsedWorkbook,
+    name: Option<&str>,
+) -> Result<&'a core::parse::ParsedSheet, JsValue> {
+    match name {
+        Some(n) => wb
+            .sheets
+            .iter()
+            .find(|s| s.name == n)
+            .ok_or_else(|| JsError::schema(format!("no sheet named {n:?}")).into_jsvalue()),
+        None => wb
+            .sheets
+            .first()
+            .ok_or_else(|| JsError::schema("workbook has no sheets").into_jsvalue()),
+    }
+}

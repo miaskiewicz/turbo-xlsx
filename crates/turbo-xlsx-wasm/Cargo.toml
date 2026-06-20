@@ -24,3 +24,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde-wasm-bindgen = "0.6"
 js-sys = "0.3"
+
+[features]
+# OFF by default: the base `turbo-xlsx-wasm` browser package is a lean writer.
+# The release workflow also builds with `--features parse` and republishes as
+# `turbo-xlsx-wasm-parse` (writer + XLSX→JSON/CSV/Markdown reader) — the
+# with/without split mirrors turbo-html2pdf's wasm font variants.
+parse = ["turbo-xlsx-core/parse"]

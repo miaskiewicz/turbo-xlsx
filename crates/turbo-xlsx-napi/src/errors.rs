@@ -26,6 +26,13 @@ pub fn schema(message: impl Into<String>) -> napi::Error {
     ))
 }
 
+/// A `ParseError`-coded fault (the parse feature has no core `ErrorCode`).
+#[cfg(feature = "parse")]
+pub fn parse_fault(message: String) -> napi::Error {
+    let body = serde_json::json!({ "code": "ParseError", "message": message }).to_string();
+    napi::Error::from_reason(format!("{SENTINEL}{body}"))
+}
+
 /// Build the JSON payload `{code, message}`.
 fn payload(code: ErrorCode, message: &str) -> Value {
     serde_json::json!({ "code": code.as_str(), "message": message })

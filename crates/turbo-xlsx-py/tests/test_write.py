@@ -246,3 +246,31 @@ def test_bad_fill_color_raises():
     with pytest.raises(x.TurboXlsxError) as exc_info:
         x.write(wb)
     assert exc_info.value.code == "BadColor"
+
+
+def test_parse_roundtrip_if_available():
+    # parse ships only in the `turbo-xlsx-parse` build; skip on the lean wheel.
+    if not hasattr(x, "parse"):
+        import pytest as _pt
+
+        _pt.skip("parse not in this build")
+    buf = x.write(
+        {
+            "sheets": [
+                {
+                    "name": "S",
+                    "rows": [
+                        {"cells": [{"type": "string", "value": "a"}, {"type": "number", "value": 3.5}]},
+                        {"cells": [{"type": "boolean", "value": True}, {"type": "currency", "value": 123456, "currency": {"code": "MXN"}}]},
+                    ],
+                }
+            ]
+        }
+    )
+    import json as _json
+
+    grid = _json.loads(x.parse(buf))
+    assert grid["sheets"][0]["rows"][0] == ["a", 3.5]
+    assert abs(grid["sheets"][0]["rows"][1][1] - 1234.56) < 0.005
+    assert x.parse(buf, format="csv").startswith("a,3.5")
+    assert "| a | 3.5 |" in x.parse(buf, format="md")

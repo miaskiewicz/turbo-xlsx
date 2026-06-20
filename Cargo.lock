@@ -784,6 +784,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-xlsx-mcp"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo-xlsx-core",
+]
+
+[[package]]
 name = "turbo-xlsx-napi"
 version = "0.1.0"
 dependencies = [

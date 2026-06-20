@@ -47,3 +47,11 @@ __all__ = [
     "write_full",
     "write_rows",
 ]
+
+# `parse` (xlsx -> JSON/CSV/Markdown) ships only in the `turbo-xlsx-parse` build.
+try:  # pragma: no cover - depends on the build variant
+    from ._turbo_xlsx import parse  # noqa: F401
+
+    __all__.append("parse")
+except ImportError:
+    pass

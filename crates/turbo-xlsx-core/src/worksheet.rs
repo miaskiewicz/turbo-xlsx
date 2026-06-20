@@ -576,10 +576,14 @@ fn push_value_body(out: &mut String, value: CellValue) {
     }
 }
 
-/// Append a numeric value, matching `trim_num`: an integer-valued finite float
-/// drops the fraction; otherwise the shortest round-trip form.
+/// Append a numeric value. A non-finite value (`NaN`/`±Inf`, which have no valid
+/// SpreadsheetML form and would corrupt the file) is written as `0`. An
+/// integer-valued float within the exact-integer range drops its fraction (via
+/// itoa); anything else uses the shortest round-trip form.
 fn push_num(out: &mut String, n: f64) {
-    if n.fract() == 0.0 && n.is_finite() {
+    if !n.is_finite() {
+        out.push('0');
+    } else if n.fract() == 0.0 && n.abs() < 9.0e15 {
         push_i64(out, n as i64);
     } else {
         use std::fmt::Write;
@@ -1244,6 +1248,45 @@ mod tests {
         // number + percent numeric kinds round-trip through the fast path too.
         assert!(xml.contains("<c r=\"A3\" s=\"2\"><v>7.5</v></c>"));
         assert!(xml.contains("<v>0.16</v></c>"));
+    }
+
+    #[test]
+    fn nonfinite_and_huge_numbers_stay_well_formed() {
+        let sheet = Sheet {
+            name: "S".into(),
+            rows: vec![Row {
+                cells: vec![
+                    Cell::Number {
+                        value: f64::NAN,
+                        format: None,
+                        style: None,
+                    },
+                    Cell::Number {
+                        value: f64::INFINITY,
+                        format: None,
+                        style: None,
+                    },
+                    Cell::Number {
+                        value: f64::NEG_INFINITY,
+                        format: None,
+                        style: None,
+                    },
+                    Cell::Number {
+                        value: 1e30,
+                        format: None,
+                        style: None,
+                    },
+                ],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let (xml, _) = render(&sheet); // render() asserts well-formedness
+                                       // NaN / ±Inf collapse to 0 (no invalid `<v>NaN</v>`).
+        assert_eq!(xml.matches("<v>0</v>").count(), 3);
+        // A huge integer-valued float uses full digits, NOT a truncated i64.
+        assert!(xml.contains("<v>1000000000000000000000000000000</v>"));
+        assert!(!xml.contains("9223372036854775807"));
     }
 
     #[test]

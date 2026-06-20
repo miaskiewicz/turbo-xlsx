@@ -1,0 +1,26 @@
+[package]
+name = "turbo-xlsx-mcp"
+description = "turbo-xlsx MCP server — native Rust, stdio JSON-RPC 2.0, Excel utilities (write / parse / convert / inspect)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+# A library (the protocol surface, unit-testable on the host) plus the stdio
+# binary that pumps JSON-RPC over newline-delimited stdin/stdout. Mirrors the
+# turbo-surf-mcp layout: thin `main` over a testable `lib`.
+[lib]
+name = "turbo_xlsx_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "turbo-xlsx-mcp"
+path = "src/main.rs"
+
+[dependencies]
+# The MCP server always ships parse: it is the read/inspect side of the tools.
+turbo-xlsx-core = { path = "../turbo-xlsx-core", features = ["parse"] }
+serde = { workspace = true }
+serde_json = { workspace = true }

@@ -18,6 +18,8 @@ pub mod error;
 pub mod model;
 mod numfmt;
 pub mod package;
+#[cfg(feature = "parse")]
+pub mod parse;
 mod style;
 pub mod validate;
 mod worksheet;

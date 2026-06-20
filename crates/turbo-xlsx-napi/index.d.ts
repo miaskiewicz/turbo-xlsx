@@ -203,6 +203,21 @@ export interface WorkbookWriter {
 /** Create an imperative workbook builder. Assemble/edit, then `build()`. */
 export function createWorkbook(opts?: { locale?: string }): WorkbookBuilder;
 
+// ---- parse (xlsx → JSON/CSV/Markdown) — `turbo-xlsx-parse` build only --------
+
+export interface ParseOptions {
+  /** `"json"` (default) | `"csv"` | `"md"`. */
+  format?: "json" | "csv" | "md" | "markdown";
+  /** Sheet name for csv/md output (default: first sheet). */
+  sheet?: string;
+  /** Return the round-trippable typed JSON model instead of the values grid (json only). */
+  typed?: boolean;
+}
+
+/** Read an `.xlsx` into JSON / CSV / Markdown. Ships only in the
+ *  `turbo-xlsx-parse` package; in the lean `turbo-xlsx` package it throws. */
+export function parse(data: Buffer | Uint8Array, opts?: ParseOptions): string;
+
 export interface WorkbookBuilder {
   /** Hydrate from a JSON workbook (string or object), then CRUD on top. */
   loadJson(input: string | object): WorkbookBuilder;

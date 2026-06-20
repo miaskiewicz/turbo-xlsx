@@ -40,16 +40,29 @@ shipped to **npm** (`turbo-xlsx`), **PyPI** (`turbo-xlsx`), and the **browser**
   - Native 50k full write **~0.13 s** (cut ~17× over the first working version).
   - Implementation: slice-by-8 table CRC-32, per-column number-format cache,
     allocation-free per-cell XML writer, mimalloc in the addon.
-- **Tooling**: cyclomatic-complexity gate (cc < 6), `criterion` + hotspot
-  profiler benches, Node + Python competitive harnesses, conformance matrix
-  (round-trip through a real reader), CI (fmt/clippy/test/coverage + binding
-  conformance), tag-driven release workflows for npm + PyPI.
+- **Parser** (optional `parse` feature, dependency-free — hand-rolled DEFLATE
+  inflater + OPC-zip reader + XML tokenizer): read an `.xlsx` (incl. the
+  DEFLATE-compressed files Excel/SheetJS/openpyxl produce) → **JSON** (values grid
+  or round-trippable typed model), **CSV** (RFC-4180), or **Markdown**. Exposed as
+  `parse(...)` in all three bindings. Each binding ships a writer-only base package
+  and a `…-parse` variant (the with/without split mirrors `turbo-html2pdf`'s fonts;
+  wasm 188 KB → 211 KB gzipped). Verified **cell-for-cell against SheetJS and
+  openpyxl** on their own DEFLATEd output.
+- **MCP server** (`turbo-xlsx-mcp`): native stdio JSON-RPC 2.0 (no SDK) exposing
+  the utilities as agent tools — `write`, `write_rows`, `convert_csv`, `parse`,
+  `inspect`, `read_range` — with path-or-base64 binary I/O.
+- **Tooling**: cyclomatic-complexity gate (cc ≤ 5), `criterion` + hotspot
+  profiler benches, Node + Python competitive harnesses (write **and** parse
+  compat/perf), conformance matrix (round-trip through a real reader), CI
+  (fmt/clippy/test/coverage + binding conformance), tag-driven release workflows
+  for npm + PyPI.
 
 ### Known limitations
 
 - Output uses a **STORED** (uncompressed) OPC zip, so files are larger than a
   DEFLATE writer's. DEFLATE is planned.
-- v1 is **write-only** (parsing stays with the community `xlsx`/SheetJS dep). No
+- The writer is **write-only**; the optional parser is a values/types reader (it
+  recovers cell values, types and dates — not fonts, fills or freeze panes). No
   formulas, no cross-sheet references, no charts, no embedded images, no `.xls`.
 - `WriteOptions.password` is accepted but a no-op (XLSX encryption is v2).
 

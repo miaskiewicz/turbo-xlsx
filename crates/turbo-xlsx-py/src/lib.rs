@@ -425,6 +425,60 @@ fn date_cell(value: &Bound<'_, PyAny>, format: &Option<core::DateFormat>) -> PyR
     })
 }
 
+/// Read an `.xlsx` into JSON / CSV / Markdown (`turbo-xlsx-parse` build only).
+/// `format` = `"json"` (default) / `"csv"` / `"md"`; `typed` selects the
+/// round-trippable typed JSON; `sheet` picks a sheet by name for csv/md.
+#[cfg(feature = "parse")]
+#[pyfunction]
+#[pyo3(signature = (data, format=None, sheet=None, typed=false))]
+pub fn parse(
+    data: &[u8],
+    format: Option<String>,
+    sheet: Option<String>,
+    typed: bool,
+) -> PyResult<String> {
+    use core::parse::serialize;
+    let wb = core::parse::parse(data).map_err(|e| schema(e.to_string()))?;
+    match format.as_deref().unwrap_or("json") {
+        "json" if typed => Ok(serialize::to_json_typed(&wb)),
+        "json" => Ok(serialize::to_json_grid(&wb)),
+        "csv" => Ok(serialize::to_csv(parse_pick(&wb, sheet.as_deref())?)),
+        "md" | "markdown" => Ok(serialize::to_markdown(parse_pick(&wb, sheet.as_deref())?)),
+        other => Err(schema(format!("unknown parse format {other:?}"))),
+    }
+}
+
+/// Select a sheet by name (default the first) for the single-sheet formats.
+#[cfg(feature = "parse")]
+fn parse_pick<'a>(
+    wb: &'a core::parse::ParsedWorkbook,
+    name: Option<&str>,
+) -> PyResult<&'a core::parse::ParsedSheet> {
+    match name {
+        Some(n) => wb
+            .sheets
+            .iter()
+            .find(|s| s.name == n)
+            .ok_or_else(|| schema(format!("no sheet named {n:?}"))),
+        None => wb
+            .sheets
+            .first()
+            .ok_or_else(|| schema("workbook has no sheets")),
+    }
+}
+
+/// Register the `parse` function when the feature is on.
+#[cfg(feature = "parse")]
+fn register_parse(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(parse, m)?)
+}
+
+/// No-op when parse is off (the lean `turbo-xlsx` build).
+#[cfg(not(feature = "parse"))]
+fn register_parse(_m: &Bound<'_, PyModule>) -> PyResult<()> {
+    Ok(())
+}
+
 /// Register the one-shot write entry points (`write`, `write_full`).
 fn register_write_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(write, m)?)?;
@@ -446,7 +500,8 @@ fn register_stream_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
 fn register_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_write_functions(m)?;
     register_input_functions(m)?;
-    register_stream_functions(m)
+    register_stream_functions(m)?;
+    register_parse(m)
 }
 
 /// The Python extension module `turbo_xlsx._turbo_xlsx`. Re-exported by the

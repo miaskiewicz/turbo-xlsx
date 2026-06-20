@@ -35,3 +35,17 @@ extension is ~25× slower. Output is larger because v1 emits a STORED
 (uncompressed) OPC zip (DEFLATE is future work).
 
 `RESULTS.py.md` is generated and git-ignored.
+
+## Parse compat + perf (`parse_compat.py`)
+
+Proves the **reader** reads openpyxl's DEFLATEd output **cell-for-cell**, then times
+it. Needs the **parse-enabled** wheel:
+
+```sh
+maturin develop --release --manifest-path ../../crates/turbo-xlsx-py/Cargo.toml --features parse
+python parse_compat.py
+```
+
+It writes a mixed-type grid with openpyxl, parses it back with both turbo and
+openpyxl, and diffs every cell (exits non-zero on a mismatch). Indicative read
+speed: turbo **~8× faster** than openpyxl on 1k rows, **~10× faster** on 50k.

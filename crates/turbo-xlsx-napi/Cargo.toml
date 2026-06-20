@@ -24,5 +24,12 @@ napi-derive = "2"
 # `default-features = false` drops the `secure` hardening for raw throughput.
 mimalloc = { version = "0.1", default-features = false }
 
+[features]
+# OFF by default: the base `turbo-xlsx` npm package is a lean writer. The release
+# workflow also builds with `--features parse` and republishes that build as
+# `turbo-xlsx-parse` (writer + XLSX→JSON/CSV/Markdown reader), the same
+# base/variant split turbo-html2pdf uses for its with/without-fonts packages.
+parse = ["turbo-xlsx-core/parse"]
+
 [build-dependencies]
 napi-build = "2"

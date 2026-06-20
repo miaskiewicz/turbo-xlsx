@@ -17,6 +17,13 @@ rust-version.workspace = true
 # the shipped library or the coverage build.
 bench-internals = []
 
+# XLSX parsing (read side): a dependency-free inflate + zip reader + XML
+# tokenizer that reads an .xlsx into a ParsedWorkbook and serializes it to
+# JSON/CSV/Markdown. OFF by default — the default build stays a pure writer and
+# the (branch-heavy) parser is kept out of the 100% coverage gate. Enabled by the
+# bindings and the MCP server.
+parse = []
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -5,7 +5,7 @@
 # from the tarpaulin build (its native-link step never runs here).
 [default]
 workspace = true
-exclude = ["turbo-xlsx-napi", "turbo-xlsx-py", "turbo-xlsx-wasm"]
+exclude = ["turbo-xlsx-napi", "turbo-xlsx-py", "turbo-xlsx-wasm", "turbo-xlsx-mcp"]
 # Pin the LLVM source-based engine on EVERY platform. tarpaulin's `Auto` engine
 # picks `Llvm` on macOS but `Ptrace` on Linux, and the two disagree about line
 # attribution and whether the integration `tests/*.rs` files belong in the
@@ -20,5 +20,11 @@ exclude-files = [
     "crates/turbo-xlsx-napi/*",
     "crates/turbo-xlsx-py/*",
     "crates/turbo-xlsx-wasm/*",
+    "crates/turbo-xlsx-mcp/*",
+    # The XLSX parser is behind the off-by-default `parse` feature, so it is not
+    # compiled into the default coverage build (like the bench-internals module).
+    # It is branch-heavy on malformed input and validated functionally instead
+    # (round-trip + the parse-compat harness). Listed defensively.
+    "crates/turbo-xlsx-core/src/parse/*",
 ]
 fail-under = 100.0

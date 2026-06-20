@@ -41,6 +41,18 @@ npm run all                  # both
 | `src/adapters.mjs` | One adapter per library: neutral workload → that library's model → `.xlsx` Buffer. turbo-xlsx uses the **streaming** writer for the large workload (its scale path) and the batch writer for the feature case. |
 | `src/perf.mjs` | Times each adapter on each workload; writes `RESULTS.perf.md`. |
 | `src/conformance.mjs` | Round-trips each adapter's feature workbook through `exceljs` and builds the capability matrix; writes `RESULTS.conformance.md`. |
+| `src/parse-fixtures.mjs` | Writes a mixed-type grid as DEFLATEd `.xlsx` via SheetJS / ExcelJS (the bytes turbo's STORED writer never produces) + the reference read. |
+| `src/parse-compat.mjs` | `npm run parse:compat` — parses each writer's file with turbo **and** SheetJS and diffs **every cell**; exits non-zero on any mismatch. |
+| `src/parse-perf.mjs` | `npm run parse:perf` — times turbo vs SheetJS reading the same DEFLATEd file into a value grid. |
+
+The parse scripts need the **parse-enabled** addon:
+
+```sh
+cargo build -p turbo-xlsx-napi --release --features parse
+node ../../crates/turbo-xlsx-napi/scripts/copy-addon.mjs
+npm run parse:compat   # turbo vs SheetJS + ExcelJS, cell-for-cell
+npm run parse:perf     # turbo ~3–4× faster than SheetJS reading DEFLATEd files
+```
 
 ## Notes
 

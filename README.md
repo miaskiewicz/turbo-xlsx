@@ -100,17 +100,91 @@ versioned JSON Schema ships with the package at
 [`schema/turbo-xlsx.workbook.schema.json`](schema/turbo-xlsx.workbook.schema.json);
 `writeFromJson` / `loadJson` validate against it and reject unknown/invalid shapes.
 
+## Parse (XLSX → JSON / CSV / Markdown)
+
+The `…-parse` build adds the inverse direction: read an `.xlsx` — including the
+**DEFLATE-compressed** files Excel, SheetJS and openpyxl produce — into JSON, CSV,
+or Markdown. It is **dependency-free**: a hand-rolled inflater (RFC-1951 puff),
+OPC-zip reader, and XML tokenizer, no new crates.
+
+```ts
+import { parse } from "turbo-xlsx-parse"; // the parse-enabled npm build
+
+const bytes = fs.readFileSync("report.xlsx");
+
+parse(bytes);                              // JSON values grid (default)
+parse(bytes, { typed: true });             // round-trippable typed JSON model
+parse(bytes, { format: "csv", sheet: "Q1" }); // RFC-4180 CSV of one sheet
+parse(bytes, { format: "md" });            // GitHub-flavored Markdown table
+```
+
+```python
+import turbo_xlsx as tx                    # the turbo-xlsx-parse wheel
+tx.parse(data, format="csv", sheet="Q1")   # -> str
+```
+
+- **JSON** comes in two shapes: a plain **values grid** (`{ sheets: [{ name, rows:
+  [[…]] }] }`) for quick consumption, or a **typed** model (`typed: true`,
+  `schemaVersion` header) that round-trips back through the writer.
+- **CSV / Markdown** render one sheet (the first by default, or `sheet` by name).
+- Cells are typed on the way out — numbers stay numbers, booleans booleans, and
+  date-formatted serials become ISO-8601 strings.
+
+Correctness is verified **cell-for-cell against SheetJS and openpyxl** on their own
+DEFLATEd output (see [Benchmarks](#parse--turbo-xlsx-vs-sheetjs--openpyxl)), on top
+of the core's round-trip + edge-case unit tests.
+
+## MCP server
+
+`turbo-xlsx-mcp` is a native **MCP** (Model Context Protocol) server — hand-rolled
+JSON-RPC 2.0 over stdio, no SDK — exposing the Excel utilities as tools an agent can
+call. Binary I/O is path-or-base64: every reader takes `path` **or** `dataBase64`;
+every writer takes an optional `out` path (else it returns base64).
+
+| tool | does |
+|---|---|
+| `write` | a full workbook object → `.xlsx` |
+| `write_rows` | typed columns + rows fast-path → `.xlsx` |
+| `convert_csv` | CSV text/file → `.xlsx` (numbers inferred; ZIP codes stay text) |
+| `parse` | `.xlsx` → JSON (grid or typed) / CSV / Markdown |
+| `inspect` | per-sheet name + row/column dimensions |
+| `read_range` | a sheet's values, or just an `A1:C3` window |
+
+```jsonc
+// stdin (newline-delimited JSON-RPC)
+{"jsonrpc":"2.0","id":1,"method":"initialize"}
+{"jsonrpc":"2.0","id":2,"method":"tools/call",
+ "params":{"name":"parse","arguments":{"path":"report.xlsx","format":"md"}}}
+```
+
+```sh
+cargo build -p turbo-xlsx-mcp --release   # binary: target/release/turbo-xlsx-mcp
+```
+
+Register it like any stdio MCP server (e.g. `claude mcp add turbo-xlsx -- \
+/path/to/turbo-xlsx-mcp`).
+
 ## Architecture
 
 ```
 crates/turbo-xlsx-core   Rust core: workbook model → OOXML SpreadsheetML → OPC zip
+                         (+ optional `parse` feature: XLSX → JSON/CSV/Markdown reader)
 crates/turbo-xlsx-napi   napi-rs binding → published as `turbo-xlsx` on npm
 crates/turbo-xlsx-py     PyO3/maturin binding → `pip install turbo-xlsx` (abi3 wheels)
 crates/turbo-xlsx-wasm   wasm-bindgen browser build (`turbo-xlsx-wasm`)
+crates/turbo-xlsx-mcp    MCP server (stdio JSON-RPC 2.0): write / parse / convert / inspect
 schema/                  versioned JSON Schema for the workbook model
-benches/competitive      perf + conformance harness vs exceljs / SheetJS
-tools/cc-check           cyclomatic-complexity gate (cc < 6), sibling of scripts/cc-check.js
+benches/competitive      perf + conformance harness vs exceljs / SheetJS (write + parse)
+benches/competitive-py   perf + conformance harness vs XlsxWriter / openpyxl (write + parse)
+tools/cc-check           cyclomatic-complexity gate (cc ≤ 5), sibling of scripts/cc-check.js
 ```
+
+Each binding ships in **two variants**, exactly like `turbo-html2pdf`'s with/without
+fonts: a lean writer-only base package, and a `…-parse` build that adds the XLSX
+**reader** (the `parse` Cargo feature). On npm that is `turbo-xlsx` vs
+`turbo-xlsx-parse`; on PyPI `turbo-xlsx` vs `turbo-xlsx-parse`; for wasm
+`turbo-xlsx-wasm` vs `turbo-xlsx-wasm-parse`. The reader is off by default so the
+common write-only install carries no extra code (wasm: 188 KB → 211 KB gzipped).
 
 All three bindings expose the same surface over the one core — Node (`turbo-xlsx`),
 Python (`import turbo_xlsx`), browser (wasm). The Python `WorkbookWriter` mirrors
@@ -213,13 +287,44 @@ node src/conformance.mjs   # writes RESULTS.conformance.md
 node --expose-gc src/perf.mjs   # writes RESULTS.perf.md
 ```
 
+### Parse — turbo-xlsx vs SheetJS / openpyxl
+
+The parser is held to a hard bar: read **the other libraries' own DEFLATEd files**
+back **cell-for-cell**. The harnesses write a mixed-type grid (unicode, embedded
+commas/quotes, empty strings, zero, negatives, large/fractional numbers, booleans)
+with SheetJS / ExcelJS / openpyxl, parse it with both turbo and the reference
+reader, and diff every cell. Both pass with **zero mismatches** — and turbo is
+several times faster reading the same compressed bytes:
+
+| read a DEFLATEd file → value grid | 1,000 rows | 50,000 rows |
+|---|---|---|
+| **turbo-xlsx** vs **SheetJS** (Node) | **3.1×** faster | **4.0×** faster |
+| **turbo-xlsx** vs **openpyxl** (Python) | **8.3×** faster | **9.7×** faster |
+
+(Node 24 / Python 3, darwin/arm64, release builds — indicative, reproduce locally.)
+
+```sh
+# Node: build the parse-enabled addon, then run compat + perf
+cargo build -p turbo-xlsx-napi --release --features parse
+node crates/turbo-xlsx-napi/scripts/copy-addon.mjs
+cd benches/competitive && npm install
+npm run parse:compat   # cell-for-cell vs SheetJS + ExcelJS
+npm run parse:perf     # read speed vs SheetJS
+
+# Python: build the parse-enabled wheel, then run
+cd benches/competitive-py && python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt maturin
+maturin develop --manifest-path ../../crates/turbo-xlsx-py/Cargo.toml --features parse --release
+python parse_compat.py   # cell-for-cell + read speed vs openpyxl
+```
+
 ## Development
 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cargo run --manifest-path tools/cc-check/Cargo.toml -- --max 5 crates   # cc < 6
+cargo run --manifest-path tools/cc-check/Cargo.toml -- --max 5 crates   # cc ≤ 5
 cargo tarpaulin                                                          # 100% gate
 ```
 
@@ -234,11 +339,13 @@ the covered core.
 
 ## Non-goals (v1)
 
-No XLSX parsing/import (write-only), no charts, no HTML/Jinja templating, no
-`.xls` (legacy BIFF), no pivot tables / conditional formatting beyond the static
-negative-in-red number format, no formulas / cross-sheet references. Embedded
-images and password protection are v2 (`WriteOptions.password` is accepted but a
-no-op today).
+The **writer** is write-only and styling-rich; the optional **parser** is a
+values/types reader (it extracts cell values, types and dates — not fonts, fills or
+freeze panes — and writing remains the primary direction). No charts, no HTML/Jinja
+templating, no `.xls` (legacy BIFF), no pivot tables / conditional formatting beyond
+the static negative-in-red number format, no formulas / cross-sheet references.
+Embedded images and password protection are v2 (`WriteOptions.password` is accepted
+but a no-op today).
 
 ## License
 

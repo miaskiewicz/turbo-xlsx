@@ -30,3 +30,10 @@ pyo3 = { version = "0.23", default-features = false, features = [
 # Bridge a Python object (dict/list/scalar) <-> serde_json::Value with no
 # intermediate JSON-string round-trip.
 pythonize = "0.23"
+
+[features]
+# OFF by default: the base `turbo-xlsx` PyPI wheel is a lean writer. The release
+# workflow also builds with `--features parse` and republishes as
+# `turbo-xlsx-parse` (writer + XLSX→JSON/CSV/Markdown reader) — the with/without
+# split mirrors turbo-html2pdf's font variants.
+parse = ["turbo-xlsx-core/parse"]

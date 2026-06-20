@@ -5,6 +5,7 @@ members = [
     "crates/turbo-xlsx-napi",
     "crates/turbo-xlsx-py",
     "crates/turbo-xlsx-wasm",
+    "crates/turbo-xlsx-mcp",
 ]
 
 [workspace.package]
