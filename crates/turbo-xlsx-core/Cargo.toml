@@ -1,6 +1,7 @@
 [package]
 name = "turbo-xlsx-core"
-description = "Native structured-workbook-model to XLSX (OOXML SpreadsheetML) writer (core crate)"
+description = "Native structured-workbook-model to XLSX (OOXML SpreadsheetML) writer + optional reader (core crate)"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
