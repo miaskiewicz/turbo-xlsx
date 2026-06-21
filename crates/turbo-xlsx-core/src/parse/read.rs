@@ -19,11 +19,40 @@ pub enum CellValue {
     Date(String),
 }
 
-/// One parsed worksheet: its name + a dense grid of rows.
+/// One parsed worksheet: its name, a dense grid of rows, and any embedded images.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedSheet {
     pub name: String,
     pub rows: Vec<Vec<CellValue>>,
+    pub images: Vec<ParsedImage>,
+}
+
+/// A parsed embedded image: its bytes (base64) + format + where it is anchored.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParsedImage {
+    /// Base64-encoded image bytes (round-trippable straight back into the model).
+    pub data: String,
+    /// The image format extension (`png` / `jpeg` / `gif`).
+    pub format: String,
+    /// Where and how big the image sits.
+    pub anchor: ParsedAnchor,
+}
+
+/// A parsed image anchor: a two-cell range or a one-cell pinned size (pixels).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParsedAnchor {
+    TwoCell {
+        from_col: u32,
+        from_row: u32,
+        to_col: u32,
+        to_row: u32,
+    },
+    OneCell {
+        col: u32,
+        row: u32,
+        width: u32,
+        height: u32,
+    },
 }
 
 /// A parsed workbook: its sheets in tab order.
@@ -42,10 +71,28 @@ pub fn parse(bytes: &[u8]) -> Result<ParsedWorkbook, ParseError> {
     let date_xf = parse_date_styles(&entries);
     let mut sheets = Vec::with_capacity(sheet_refs.len());
     for (name, rid) in sheet_refs {
-        let rows = parse_one_sheet(&entries, &rels, &rid, &shared, &date_xf);
-        sheets.push(ParsedSheet { name, rows });
+        sheets.push(parse_sheet(&entries, &rels, name, &rid, &shared, &date_xf));
     }
     Ok(ParsedWorkbook { sheets })
+}
+
+/// Resolve one sheet reference into its rows + embedded images.
+fn parse_sheet(
+    entries: &[Entry],
+    rels: &BTreeMap<String, String>,
+    name: String,
+    rid: &str,
+    shared: &[String],
+    date_xf: &[bool],
+) -> ParsedSheet {
+    let (rows, images) = match rels.get(rid).map(|t| sheet_path(t)) {
+        Some(path) => (
+            parse_sheet_rows(entries, &path, shared, date_xf),
+            parse_sheet_images(entries, &path),
+        ),
+        None => (Vec::new(), Vec::new()),
+    };
+    ParsedSheet { name, rows, images }
 }
 
 /// Find a part's bytes by its zip name.
@@ -217,19 +264,14 @@ fn code_is_date(code: &str) -> bool {
     c.contains('y') || c.contains('d') || c.contains("h:")
 }
 
-/// Parse a single sheet (resolved via its relationship) into rows.
-fn parse_one_sheet(
+/// Parse a worksheet part (already resolved to its zip path) into rows.
+fn parse_sheet_rows(
     entries: &[Entry],
-    rels: &BTreeMap<String, String>,
-    rid: &str,
+    path: &str,
     shared: &[String],
     date_xf: &[bool],
 ) -> Vec<Vec<CellValue>> {
-    let Some(target) = rels.get(rid) else {
-        return Vec::new();
-    };
-    let path = sheet_path(target);
-    let Some(bytes) = part(entries, &path) else {
+    let Some(bytes) = part(entries, path) else {
         return Vec::new();
     };
     parse_sheet_xml(&xml_of(bytes), shared, date_xf)
@@ -241,6 +283,275 @@ fn sheet_path(target: &str) -> String {
         Some(abs) => abs.to_string(),
         None => format!("xl/{target}"),
     }
+}
+
+/// One `<Relationship>` (id + type + target) from a `.rels` part.
+struct Rel {
+    id: String,
+    typ: String,
+    target: String,
+}
+
+/// Every relationship in a `.rels` part (empty when the part is absent).
+fn parse_rel_list(entries: &[Entry], path: &str) -> Vec<Rel> {
+    let mut out = Vec::new();
+    let Some(bytes) = part(entries, path) else {
+        return out;
+    };
+    let xml = xml_of(bytes);
+    let mut r = Reader::new(&xml);
+    while let Some(ev) = r.read() {
+        if let Event::Open(tag) = ev {
+            push_rel(&mut out, &tag);
+        }
+    }
+    out
+}
+
+/// Collect one `<Relationship Id Type Target>` row.
+fn push_rel(out: &mut Vec<Rel>, tag: &Tag) {
+    if tag.name == "Relationship" {
+        if let (Some(id), Some(target)) = (tag.attr("Id"), tag.attr("Target")) {
+            out.push(Rel {
+                id: id.to_string(),
+                typ: tag.attr("Type").unwrap_or("").to_string(),
+                target: target.to_string(),
+            });
+        }
+    }
+}
+
+/// The `_rels` part path for a part (`a/b/c.xml` → `a/b/_rels/c.xml.rels`).
+fn rels_path_of(part_path: &str) -> String {
+    match part_path.rsplit_once('/') {
+        Some((dir, file)) => format!("{dir}/_rels/{file}.rels"),
+        None => format!("_rels/{part_path}.rels"),
+    }
+}
+
+/// Resolve a (possibly `../`-relative or `/`-absolute) relationship target
+/// against the directory of `base_part`, returning a normalized zip path.
+fn resolve(base_part: &str, target: &str) -> String {
+    if let Some(abs) = target.strip_prefix('/') {
+        return abs.to_string();
+    }
+    let dir = base_part.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
+    let mut segs: Vec<&str> = if dir.is_empty() {
+        Vec::new()
+    } else {
+        dir.split('/').collect()
+    };
+    for seg in target.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                segs.pop();
+            }
+            s => segs.push(s),
+        }
+    }
+    segs.join("/")
+}
+
+/// Extract every embedded image of a worksheet: follow its `_rels` to the
+/// drawing part, then that drawing's anchors + media. Empty when the sheet has
+/// no drawing.
+fn parse_sheet_images(entries: &[Entry], sheet_path: &str) -> Vec<ParsedImage> {
+    let rels = parse_rel_list(entries, &rels_path_of(sheet_path));
+    let Some(drawing) = rels.iter().find(|r| r.typ.ends_with("/drawing")) else {
+        return Vec::new();
+    };
+    let drawing_path = resolve(sheet_path, &drawing.target);
+    let Some(bytes) = part(entries, &drawing_path) else {
+        return Vec::new();
+    };
+    let drawing_rels = parse_rel_list(entries, &rels_path_of(&drawing_path));
+    parse_drawing(&xml_of(bytes), entries, &drawing_path, &drawing_rels)
+}
+
+/// Mutable state while walking a drawing part's anchors.
+#[derive(Default)]
+struct Anchor {
+    two: bool,
+    active: bool,
+    in_from: bool,
+    in_to: bool,
+    /// 0 = none, 1 = col, 2 = row (which child of the current marker).
+    field: u8,
+    from: (u32, u32),
+    to: (u32, u32),
+    cx: u64,
+    cy: u64,
+    embed: String,
+}
+
+/// Walk a `drawingN.xml` part into [`ParsedImage`]s.
+fn parse_drawing(
+    xml: &str,
+    entries: &[Entry],
+    drawing_path: &str,
+    rels: &[Rel],
+) -> Vec<ParsedImage> {
+    let mut out = Vec::new();
+    let mut a = Anchor::default();
+    let mut r = Reader::new(xml);
+    while let Some(ev) = r.read() {
+        drawing_event(&mut out, &mut a, entries, drawing_path, rels, ev);
+    }
+    out
+}
+
+/// Fold one drawing event into the anchor state / output.
+fn drawing_event(
+    out: &mut Vec<ParsedImage>,
+    a: &mut Anchor,
+    entries: &[Entry],
+    drawing_path: &str,
+    rels: &[Rel],
+    ev: Event,
+) {
+    match ev {
+        Event::Open(tag) => open_drawing(a, &tag),
+        Event::Text(t) => coord_text(a, &t),
+        Event::Close(name) => close_drawing(out, a, entries, drawing_path, rels, name),
+    }
+}
+
+/// Handle a drawing open tag: start anchors, enter markers, read ext / blip.
+fn open_drawing(a: &mut Anchor, tag: &Tag) {
+    match tag.name {
+        "xdr:twoCellAnchor" => start(a, true),
+        "xdr:oneCellAnchor" => start(a, false),
+        "xdr:from" => a.in_from = true,
+        "xdr:to" => a.in_to = true,
+        "xdr:col" => a.field = 1,
+        "xdr:row" => a.field = 2,
+        "xdr:ext" => set_ext(a, tag),
+        "a:blip" => a.embed = tag.attr("r:embed").unwrap_or("").to_string(),
+        _ => {}
+    }
+}
+
+/// Begin a fresh anchor of the given kind.
+fn start(a: &mut Anchor, two: bool) {
+    *a = Anchor {
+        two,
+        active: true,
+        ..Anchor::default()
+    };
+}
+
+/// Read a one-cell anchor's `<xdr:ext cx cy>` extent (EMU).
+fn set_ext(a: &mut Anchor, tag: &Tag) {
+    a.cx = attr_u64(tag, "cx");
+    a.cy = attr_u64(tag, "cy");
+}
+
+/// Parse a numeric attribute, defaulting to 0.
+fn attr_u64(tag: &Tag, key: &str) -> u64 {
+    tag.attr(key).and_then(|s| s.parse().ok()).unwrap_or(0)
+}
+
+/// Record a marker coordinate (`<xdr:col>`/`<xdr:row>` text) into from/to.
+fn coord_text(a: &mut Anchor, t: &str) {
+    let Ok(v) = t.trim().parse::<u32>() else {
+        return;
+    };
+    let f = a.field;
+    if a.in_from {
+        set_field(&mut a.from, f, v);
+    } else if a.in_to {
+        set_field(&mut a.to, f, v);
+    }
+}
+
+/// Set the col (field 1) or row (field 2) component of a cell coordinate.
+fn set_field(cell: &mut (u32, u32), field: u8, v: u32) {
+    match field {
+        1 => cell.0 = v,
+        2 => cell.1 = v,
+        _ => {}
+    }
+}
+
+/// Handle a drawing close tag: leave markers, finalize an anchor.
+fn close_drawing(
+    out: &mut Vec<ParsedImage>,
+    a: &mut Anchor,
+    entries: &[Entry],
+    drawing_path: &str,
+    rels: &[Rel],
+    name: &str,
+) {
+    match name {
+        "xdr:from" => a.in_from = false,
+        "xdr:to" => a.in_to = false,
+        "xdr:col" | "xdr:row" => a.field = 0,
+        "xdr:twoCellAnchor" | "xdr:oneCellAnchor" => finalize(out, a, entries, drawing_path, rels),
+        _ => {}
+    }
+}
+
+/// Emit the current anchor as a [`ParsedImage`] when it resolves to media.
+fn finalize(
+    out: &mut Vec<ParsedImage>,
+    a: &mut Anchor,
+    entries: &[Entry],
+    drawing_path: &str,
+    rels: &[Rel],
+) {
+    if a.active {
+        if let Some(img) = build_image(a, entries, drawing_path, rels) {
+            out.push(img);
+        }
+    }
+    a.active = false;
+}
+
+/// Resolve the current anchor's blip to media bytes + build the image.
+fn build_image(
+    a: &Anchor,
+    entries: &[Entry],
+    drawing_path: &str,
+    rels: &[Rel],
+) -> Option<ParsedImage> {
+    let rel = rels.iter().find(|r| r.id == a.embed)?;
+    let media_path = resolve(drawing_path, &rel.target);
+    let bytes = part(entries, &media_path)?;
+    Some(ParsedImage {
+        data: crate::b64::encode(bytes),
+        format: ext_of(&media_path),
+        anchor: anchor_of(a),
+    })
+}
+
+/// Build the parsed anchor (two-cell range or one-cell pixel size).
+fn anchor_of(a: &Anchor) -> ParsedAnchor {
+    if a.two {
+        ParsedAnchor::TwoCell {
+            from_col: a.from.0,
+            from_row: a.from.1,
+            to_col: a.to.0,
+            to_row: a.to.1,
+        }
+    } else {
+        ParsedAnchor::OneCell {
+            col: a.from.0,
+            row: a.from.1,
+            width: emu_px(a.cx),
+            height: emu_px(a.cy),
+        }
+    }
+}
+
+/// EMU → pixels (96 dpi); the inverse of the writer's `px * 9525`.
+fn emu_px(emu: u64) -> u32 {
+    (emu / 9525) as u32
+}
+
+/// The file extension of a media path (`xl/media/image1.png` → `png`).
+fn ext_of(path: &str) -> String {
+    path.rsplit('.').next().unwrap_or("png").to_string()
 }
 
 /// Walk a worksheet part into rows of typed values.

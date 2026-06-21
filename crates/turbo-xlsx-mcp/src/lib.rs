@@ -567,11 +567,13 @@ fn tools() -> Vec<Value> {
         tool_schema(
             "write",
             "Write a full workbook object to .xlsx. Provide 'workbook' (the turbo-xlsx \
-             workbook shape). Returns base64, or { path, bytes } when 'out' is set.",
+             workbook shape; a sheet may carry 'images': floating embedded images \
+             with base64 'data' + 'format' + a cell 'anchor'). Returns base64, or \
+             { path, bytes } when 'out' is set.",
             json!({
                 "type": "object",
                 "properties": {
-                    "workbook": { "type": "object", "description": "Workbook: { sheets: [...] }" },
+                    "workbook": { "type": "object", "description": "Workbook: { sheets: [{ ..., images?: [{ data, format, anchor }] }] }" },
                     "out": { "type": "string", "description": "Optional output file path" },
                     "password": { "type": "string", "description": "Encrypt with this password (AES-256)" }
                 },

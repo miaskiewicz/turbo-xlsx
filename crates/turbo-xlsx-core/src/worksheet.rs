@@ -37,7 +37,11 @@ pub fn write_sheet(
             &mut s, sheet, row, i as u32, locale, table, diags, &mut cache,
         )?;
     }
-    s.push_str(&sheet_suffix(&sheet.merges, diags)?);
+    s.push_str(&sheet_suffix(
+        &sheet.merges,
+        !sheet.images.is_empty(),
+        diags,
+    )?);
     Ok(s)
 }
 
@@ -70,10 +74,21 @@ pub fn sheet_prefix(sheet: &Sheet, rows: u32, max_cols: u32, diags: &mut Diagnos
     s
 }
 
-/// The worksheet tail: close `<sheetData>`, emit any merges, close the document.
-pub fn sheet_suffix(merges: &[String], diags: &mut Diagnostics) -> Result<String> {
+/// The worksheet tail: close `<sheetData>`, emit any merges, reference the sheet
+/// drawing (when `has_images`), then close the document. The drawing relationship
+/// is always `rId1` in the worksheet's own `_rels` (its only relationship).
+pub fn sheet_suffix(
+    merges: &[String],
+    has_images: bool,
+    diags: &mut Diagnostics,
+) -> Result<String> {
     let mut s = String::from("</sheetData>");
     s.push_str(&merges_xml(merges, diags)?);
+    if has_images {
+        s.push_str(
+            "<drawing xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\" r:id=\"rId1\"/>",
+        );
+    }
     s.push_str("</worksheet>");
     Ok(s)
 }
@@ -997,6 +1012,7 @@ mod tests {
                     ..Default::default()
                 },
             ],
+            images: vec![],
         };
         let (xml, diags) = render(&sheet);
         assert!(xml.contains("<sheetPr>"));

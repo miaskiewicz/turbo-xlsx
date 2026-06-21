@@ -5,16 +5,54 @@
 
 use serde_json::{json, Value};
 
-use super::read::{CellValue, ParsedSheet, ParsedWorkbook};
+use super::read::{CellValue, ParsedAnchor, ParsedImage, ParsedSheet, ParsedWorkbook};
 
-/// `{ "sheets": [ { "name", "rows": [[scalar, ...]] } ] }` — values only.
+/// `{ "sheets": [ { "name", "rows": [[scalar, ...]], "images": [...] } ] }`.
 pub fn to_json_grid(wb: &ParsedWorkbook) -> String {
     let sheets: Vec<Value> = wb
         .sheets
         .iter()
-        .map(|s| json!({ "name": s.name, "rows": grid_rows(s) }))
+        .map(|s| json!({ "name": s.name, "rows": grid_rows(s), "images": images_json(s) }))
         .collect();
     serde_json::to_string(&json!({ "sheets": sheets })).unwrap_or_default()
+}
+
+/// The sheet's images as model-shaped JSON objects (omitted-empty by the caller's
+/// consumer; always an array here). Round-trippable straight into `writeFromJson`.
+fn images_json(sheet: &ParsedSheet) -> Vec<Value> {
+    sheet.images.iter().map(image_to_json).collect()
+}
+
+/// One parsed image as a `{ data, format, anchor }` model object.
+fn image_to_json(img: &ParsedImage) -> Value {
+    json!({ "data": img.data, "format": img.format, "anchor": anchor_to_json(&img.anchor) })
+}
+
+/// One anchor as its tagged `{ kind, ... }` model object.
+fn anchor_to_json(anchor: &ParsedAnchor) -> Value {
+    match anchor {
+        ParsedAnchor::TwoCell {
+            from_col,
+            from_row,
+            to_col,
+            to_row,
+        } => json!({
+            "kind": "twoCell",
+            "from": { "col": from_col, "row": from_row },
+            "to": { "col": to_col, "row": to_row },
+        }),
+        ParsedAnchor::OneCell {
+            col,
+            row,
+            width,
+            height,
+        } => json!({
+            "kind": "oneCell",
+            "at": { "col": col, "row": row },
+            "width": width,
+            "height": height,
+        }),
+    }
 }
 
 /// The value-array rows of one sheet.
@@ -41,7 +79,7 @@ pub fn to_json_typed(wb: &ParsedWorkbook) -> String {
     let sheets: Vec<Value> = wb
         .sheets
         .iter()
-        .map(|s| json!({ "name": s.name, "rows": typed_rows(s) }))
+        .map(|s| json!({ "name": s.name, "rows": typed_rows(s), "images": images_json(s) }))
         .collect();
     serde_json::to_string(&json!({ "schemaVersion": "1.0", "sheets": sheets })).unwrap_or_default()
 }

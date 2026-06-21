@@ -14,6 +14,8 @@
 
 #![forbid(unsafe_code)]
 
+mod b64;
+mod drawing;
 #[cfg(feature = "encrypt")]
 pub mod encrypt;
 pub mod error;
@@ -31,9 +33,9 @@ mod zip;
 
 pub use error::{Diagnostics, ErrorCode, Lint, LintCode, Result, TurboXlsxError};
 pub use model::{
-    Align, Border, BorderEdge, BorderStyle, Cell, CellStyle, Column, CurrencyFormat, DateFormat,
-    DateKind, DateValue, DocMeta, Font, Freeze, HAlign, Negative, NumberFormat, Outline, Row,
-    Sheet, VAlign, Workbook, WriteOptions,
+    Align, Border, BorderEdge, BorderStyle, Cell, CellRef, CellStyle, Column, CurrencyFormat,
+    DateFormat, DateKind, DateValue, DocMeta, Font, Freeze, HAlign, ImageAnchor, ImageFormat,
+    Negative, NumberFormat, Outline, Row, Sheet, SheetImage, VAlign, Workbook, WriteOptions,
 };
 pub use package::{WriteResult, DEFAULT_LOCALE};
 pub use worksheet::ColumnData;

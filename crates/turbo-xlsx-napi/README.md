@@ -9,7 +9,7 @@ sheets. **Country-agnostic** (locale + ISO-4217 code are inputs) and
 
 ## Status
 
-`v0.1.2`. Prebuilt `.node` addons ship for linux x64 gnu/musl, linux arm64,
+`v0.1.4`. Prebuilt `.node` addons ship for linux x64 gnu/musl, linux arm64,
 darwin arm64, win32 x64 msvc.
 
 ## Install
@@ -58,6 +58,13 @@ const xlsx = write({
 **Password protection:** pass `{ password }` to any write call to encrypt the output
 with ECMA-376 Agile Encryption (AES-256) — `write(workbook, { password: "s3cret" })`.
 Excel / LibreOffice open it with that password.
+
+**Embedded images:** give a sheet `images: [{ data, format, anchor, alt? }]` —
+`data` is base64 image bytes, `format` is `"png" | "jpeg" | "gif"`, and `anchor`
+is either `{ kind: "twoCell", from, to }` (resizes with the cell range) or
+`{ kind: "oneCell", at, width, height }` (fixed pixel size). The builder exposes
+`sheet.addImage(image)`. With `turbo-xlsx-parse`, `parse()` returns each sheet's
+images back, so a write → parse round-trip preserves them.
 
 Returned Buffers carry the run's non-fatal `.diagnostics`; the streaming
 `finish()` returns `{ xlsx, diagnostics }`. Fatal faults throw a typed

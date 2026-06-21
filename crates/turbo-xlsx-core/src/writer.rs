@@ -129,7 +129,11 @@ impl WorkbookWriter {
         };
         let mut xml = sheet_prefix(&open.meta, open.rows, open.max_cols, &mut self.diags);
         xml.push_str(&open.body);
-        xml.push_str(&sheet_suffix(&open.meta.merges, &mut self.diags)?);
+        xml.push_str(&sheet_suffix(
+            &open.meta.merges,
+            !open.meta.images.is_empty(),
+            &mut self.diags,
+        )?);
         self.sheets.push(xml);
         self.metas.push(open.meta);
         Ok(())

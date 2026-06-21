@@ -274,3 +274,71 @@ def test_parse_roundtrip_if_available():
     assert abs(grid["sheets"][0]["rows"][1][1] - 1234.56) < 0.005
     assert x.parse(buf, format="csv").startswith("a,3.5")
     assert "| a | 3.5 |" in x.parse(buf, format="md")
+
+
+IMAGE_WORKBOOK = {
+    "sheets": [
+        {
+            "name": "Pics",
+            "rows": [{"cells": [{"type": "string", "value": "hi"}]}],
+            "images": [
+                {
+                    "data": "aGVsbG8=",  # "hello"
+                    "format": "png",
+                    "anchor": {"kind": "twoCell", "from": {"col": 0, "row": 0}, "to": {"col": 3, "row": 6}},
+                    "alt": "logo",
+                },
+                {
+                    "data": "d29ybGQ=",  # "world"
+                    "format": "jpeg",
+                    "anchor": {"kind": "oneCell", "at": {"col": 1, "row": 1}, "width": 120, "height": 80},
+                },
+            ],
+        }
+    ]
+}
+
+
+def test_write_embeds_images():
+    data = x.write(IMAGE_WORKBOOK)
+    assert data.startswith(b"PK")
+    assert b"xl/media/image1.png" in data
+    assert b"xl/media/image2.jpeg" in data
+    assert b"xl/drawings/drawing1.xml" in data
+    assert b"xdr:twoCellAnchor" in data
+    assert b"xdr:oneCellAnchor" in data
+    assert b'descr="logo"' in data
+
+
+def test_invalid_image_anchor_raises():
+    bad = {
+        "sheets": [
+            {
+                "name": "S",
+                "rows": [],
+                "images": [
+                    {
+                        "data": "aGVsbG8=",
+                        "format": "png",
+                        "anchor": {"kind": "twoCell", "from": {"col": 3, "row": 3}, "to": {"col": 1, "row": 1}},
+                    }
+                ],
+            }
+        ]
+    }
+    with pytest.raises(x.TurboXlsxError) as ei:
+        x.write(bad)
+    assert ei.value.code == "BadImage"
+
+
+def test_round_trip_images_when_parse_available():
+    if not hasattr(x, "parse"):
+        pytest.skip("parse not in this build")
+    buf = x.write(IMAGE_WORKBOOK)
+    typed = json.loads(x.parse(buf, typed=True))
+    images = typed["sheets"][0]["images"]
+    assert len(images) == 2
+    assert images[0]["format"] == "png"
+    assert images[0]["anchor"]["kind"] == "twoCell"
+    assert images[1]["anchor"]["kind"] == "oneCell"
+    assert images[1]["anchor"]["width"] == 120

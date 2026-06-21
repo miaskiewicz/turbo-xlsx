@@ -361,3 +361,100 @@ fn round_trip_edge_via_writer() {
     assert_eq!(r0[1], CellValue::Number(-14.0)); // negative
     assert_eq!(r0[15], CellValue::Number(0.0)); // zero
 }
+
+#[test]
+fn round_trip_images_via_writer() {
+    use turbo_xlsx_core::parse::{ParsedAnchor, ParsedImage};
+    use turbo_xlsx_core::{CellRef, ImageAnchor, ImageFormat, SheetImage};
+
+    // "hello"/"world" base64 — distinct, valid, non-empty payloads.
+    let png = SheetImage {
+        data: "aGVsbG8=".into(),
+        format: ImageFormat::Png,
+        anchor: ImageAnchor::TwoCell {
+            from: CellRef { col: 0, row: 0 },
+            to: CellRef { col: 3, row: 6 },
+        },
+        alt: Some("logo".into()),
+    };
+    let jpeg = SheetImage {
+        data: "d29ybGQ=".into(),
+        format: ImageFormat::Jpeg,
+        anchor: ImageAnchor::OneCell {
+            at: CellRef { col: 1, row: 2 },
+            width: 120,
+            height: 80,
+        },
+        alt: None,
+    };
+    let wb = Workbook {
+        sheets: vec![Sheet {
+            name: "Pics".into(),
+            images: vec![png, jpeg],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let bytes = write(&wb, &WriteOptions::default()).unwrap().xlsx;
+    let parsed = parse(&bytes).unwrap();
+
+    let images = &parsed.sheets[0].images;
+    assert_eq!(images.len(), 2);
+
+    // The two-cell PNG round-trips bytes, format and the from/to coordinates.
+    assert_eq!(
+        images[0],
+        ParsedImage {
+            data: "aGVsbG8=".into(),
+            format: "png".into(),
+            anchor: ParsedAnchor::TwoCell {
+                from_col: 0,
+                from_row: 0,
+                to_col: 3,
+                to_row: 6,
+            },
+        }
+    );
+
+    // The one-cell JPEG round-trips its pixel extent (EMU → px is exact here).
+    assert_eq!(
+        images[1],
+        ParsedImage {
+            data: "d29ybGQ=".into(),
+            format: "jpeg".into(),
+            anchor: ParsedAnchor::OneCell {
+                col: 1,
+                row: 2,
+                width: 120,
+                height: 80,
+            },
+        }
+    );
+
+    // The typed JSON carries an `images` array round-trippable into writeFromJson.
+    let json = to_json_typed(&parsed);
+    assert!(json.contains("\"images\""));
+    assert!(json.contains("\"kind\":\"twoCell\""));
+    assert!(json.contains("\"kind\":\"oneCell\""));
+    assert!(json.contains("\"data\":\"aGVsbG8=\""));
+}
+
+#[test]
+fn sheet_without_images_parses_empty_image_list() {
+    let wb = Workbook {
+        sheets: vec![Sheet {
+            name: "Plain".into(),
+            rows: vec![Row {
+                cells: vec![Cell::String {
+                    value: "x".into(),
+                    style: None,
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let parsed = parse(&write(&wb, &WriteOptions::default()).unwrap().xlsx).unwrap();
+    assert!(parsed.sheets[0].images.is_empty());
+}

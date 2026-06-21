@@ -69,6 +69,28 @@ export interface Sheet {
   freeze?: { rows?: number; cols?: number };
   /** Default outline state for grouped columns. */
   outline?: { columnsCollapsed?: boolean };
+  /** Floating embedded images, each anchored to a cell and drawn over the grid. */
+  images?: SheetImage[];
+}
+
+/** A zero-based cell coordinate used by image anchors; A1 is `{ col: 0, row: 0 }`. */
+export interface CellRef {
+  col: number;
+  row: number;
+}
+
+/** How an embedded image is positioned/sized. */
+export type ImageAnchor =
+  | { kind: "twoCell"; from: CellRef; to: CellRef }
+  | { kind: "oneCell"; at: CellRef; width: number; height: number };
+
+/** A floating embedded image. `data` is base64-encoded image bytes. */
+export interface SheetImage {
+  data: string;
+  format: "png" | "jpeg" | "jpg" | "gif";
+  anchor: ImageAnchor;
+  /** Optional alt text / title (accessibility). */
+  alt?: string;
 }
 
 export interface Column {
@@ -241,4 +263,6 @@ export interface SheetBuilder {
   freeze(opts: { rows?: number; cols?: number }): SheetBuilder;
   /** Bold/top-border footer (pre-computed totals). */
   setTotalsRow(row: Row): SheetBuilder;
+  /** Add a floating embedded image anchored over the grid. */
+  addImage(image: SheetImage): SheetBuilder;
 }

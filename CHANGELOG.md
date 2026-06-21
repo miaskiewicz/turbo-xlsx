@@ -4,6 +4,28 @@ All notable changes to **turbo-xlsx** are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] — 2026-06-21
+
+### Added
+
+- **Embedded images** — a sheet may now carry `images: SheetImage[]`, floating
+  pictures anchored over the grid and emitted as OOXML drawings (one
+  `xl/drawings/drawingN.xml` + `xl/media` part per sheet, with the worksheet/
+  drawing relationship plumbing and content types). Each image is base64 `data` +
+  a `format` (`png` / `jpeg` / `gif`) + an `anchor`:
+  - `{ kind: "twoCell", from, to }` — spans a cell range, resizing with the grid.
+  - `{ kind: "oneCell", at, width, height }` — pinned at a cell with a fixed pixel
+    size (96 dpi → EMU). Optional `alt` text.
+  - Identical image bytes are **interned once** into a single media part, even
+    across anchors/sheets. Fail-closed validation rejects non-base64 / empty data
+    and degenerate anchors (`BadImage`).
+  - **Parsing** is the inverse: the reader extracts each sheet's drawings + media
+    back into `ParsedImage`s, included in the JSON output (grid + typed), so a
+    write → parse → write round-trip preserves images.
+  - Wired through **all bindings**: napi (`Sheet.images` + the `createWorkbook`
+    builder's `addImage`), Python (`"images"`), wasm, and the MCP `write` tool.
+    The base64 codec is hand-rolled in the core — the writer stays dependency-free.
+
 ## [0.1.3] — 2026-06-21
 
 ### Added
@@ -131,6 +153,7 @@ shipped to **npm** (`turbo-xlsx`), **PyPI** (`turbo-xlsx`), and the **browser**
   formulas, no cross-sheet references, no charts, no embedded images, no `.xls`.
 - `WriteOptions.password` is accepted but a no-op (XLSX encryption is v2).
 
+[0.1.4]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.4
 [0.1.3]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.3
 [0.1.2]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.2
 [0.1.1]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.1

@@ -22,6 +22,10 @@ pub enum ErrorCode {
     BadCellRef,
     /// A colour string was not `#rrggbb` / `rrggbb` hex.
     BadColor,
+    /// An embedded image's data was not valid base64, or its anchor was
+    /// malformed (e.g. a two-cell range whose `to` is not below-and-right of
+    /// `from`, or a one-cell image with zero width/height).
+    BadImage,
     /// The JSON input was not valid JSON.
     InvalidJson,
     /// The JSON input parsed but did not match the documented workbook schema
@@ -41,6 +45,7 @@ impl ErrorCode {
             ErrorCode::InvalidSheetName => "InvalidSheetName",
             ErrorCode::BadCellRef => "BadCellRef",
             ErrorCode::BadColor => "BadColor",
+            ErrorCode::BadImage => "BadImage",
             ErrorCode::InvalidJson => "InvalidJson",
             ErrorCode::SchemaViolation => "SchemaViolation",
             #[cfg(feature = "encrypt")]
@@ -135,6 +140,7 @@ mod tests {
             ErrorCode::InvalidSheetName,
             ErrorCode::BadCellRef,
             ErrorCode::BadColor,
+            ErrorCode::BadImage,
             ErrorCode::InvalidJson,
             ErrorCode::SchemaViolation,
         ];
@@ -147,6 +153,7 @@ mod tests {
                 "InvalidSheetName",
                 "BadCellRef",
                 "BadColor",
+                "BadImage",
                 "InvalidJson",
                 "SchemaViolation",
             ]

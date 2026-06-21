@@ -50,6 +50,82 @@ pub struct Sheet {
     /// Default outline state for grouped columns.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outline: Option<Outline>,
+    /// Floating embedded images, each anchored to a cell coordinate and drawn
+    /// over the grid (one OOXML drawing part per sheet that has any).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<SheetImage>,
+}
+
+/// A floating image embedded in a sheet, anchored to a cell coordinate. The
+/// bytes are carried base64-encoded so the model stays JSON-serializable; the
+/// writer decodes them into an `xl/media` part and emits a drawing anchor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SheetImage {
+    /// Base64-encoded image bytes (standard alphabet; whitespace is ignored).
+    pub data: String,
+    /// The image encoding — selects the media extension + content type.
+    pub format: ImageFormat,
+    /// Where and how big the image is drawn.
+    pub anchor: ImageAnchor,
+    /// Optional alt text / title (accessibility), written to the drawing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alt: Option<String>,
+}
+
+/// The supported embedded-image encodings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ImageFormat {
+    Png,
+    #[serde(alias = "jpg")]
+    Jpeg,
+    Gif,
+}
+
+/// How a [`SheetImage`] is positioned and sized.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ImageAnchor {
+    /// Spans from one cell's top-left to another's, resizing with the cells.
+    TwoCell { from: CellRef, to: CellRef },
+    /// Pinned at one cell with a fixed pixel size (does not resize with cells).
+    OneCell {
+        at: CellRef,
+        /// Width in pixels (96 dpi).
+        width: u32,
+        /// Height in pixels (96 dpi).
+        height: u32,
+    },
+}
+
+/// A zero-based cell coordinate used by image anchors (`col` = column index,
+/// `row` = row index; `A1` is `{ col: 0, row: 0 }`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CellRef {
+    pub col: u32,
+    pub row: u32,
+}
+
+impl ImageFormat {
+    /// The `xl/media/imageN.<ext>` file extension.
+    pub fn ext(self) -> &'static str {
+        match self {
+            ImageFormat::Png => "png",
+            ImageFormat::Jpeg => "jpeg",
+            ImageFormat::Gif => "gif",
+        }
+    }
+
+    /// The OPC content type for the media part.
+    pub fn content_type(self) -> &'static str {
+        match self {
+            ImageFormat::Png => "image/png",
+            ImageFormat::Jpeg => "image/jpeg",
+            ImageFormat::Gif => "image/gif",
+        }
+    }
 }
 
 /// Freeze-pane configuration: how many top rows / left columns to pin.

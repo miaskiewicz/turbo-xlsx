@@ -25,7 +25,8 @@ Core internals: `model` (typed workbook + serde), `numfmt` (locale/currency/date
 → OOXML format codes + ISO→serial), `style` (cell→row→column resolution +
 `styles.xml` interning), `worksheet` (sheetN.xml; **inline strings** so per-row
 work is O(1)), `zip` (deterministic STORED OPC zip, no DEFLATE dep), `package`
-(OPC parts), `writer` (streaming), `validate` (semantic + JSON fail-closed).
+(OPC parts), `writer` (streaming), `validate` (semantic + JSON fail-closed),
+`drawing` (embedded-image drawings/media/rels), `b64` (dependency-free base64).
 
 ## Pre-commit / pre-tag gate (all must pass; CI re-runs them)
 
@@ -117,4 +118,15 @@ napi/py/wasm/MCP bindings (orthogonal to the `parse` variant axis) and excluded
 from the coverage gate like `parse`; it is verified by a `msoffcrypto-tool`
 round-trip. Encrypting is non-deterministic (random salts/keys).
 
-Deferred to v2: embedded images/logos, DEFLATE compression.
+**Embedded images** ship via `Sheet.images` (`SheetImage[]`) — floating pictures
+anchored over the grid, emitted as OOXML drawings (one `xl/drawings/drawingN.xml`
++ `xl/media` part per sheet, with worksheet/drawing rels + content types). Each is
+base64 `data` + `format` (`png`/`jpeg`/`gif`) + an `anchor` (`twoCell` from/to, or
+`oneCell` at + px size; px→EMU at 9525). Identical bytes intern to one media part;
+`validate` rejects bad base64 / degenerate anchors (`BadImage`). The base64 codec
+(`b64.rs`) and drawing builder (`drawing.rs`) are hand-rolled — the writer stays
+dependency-free — and both are on the 100% coverage gate. The `parse` side
+extracts drawings+media back into `ParsedImage`s (write→parse→write round-trips).
+Wired through all bindings (napi `addImage` builder, py/wasm/MCP via serde).
+
+Deferred to v2: DEFLATE compression.

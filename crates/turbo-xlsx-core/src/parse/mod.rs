@@ -17,7 +17,7 @@ mod xml;
 
 use std::fmt;
 
-pub use read::{parse, CellValue, ParsedSheet, ParsedWorkbook};
+pub use read::{parse, CellValue, ParsedAnchor, ParsedImage, ParsedSheet, ParsedWorkbook};
 
 /// Phase entry points for the parse **hotspot profiler**, exposed ONLY under the
 /// off-by-default `bench-internals` feature (never in the shipped library or the

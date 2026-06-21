@@ -5,6 +5,7 @@
 //! the package + workbook relationship files, `docProps` metadata, the shared
 //! `styles.xml`, and one `worksheets/sheetN.xml` per sheet.
 
+use crate::drawing;
 use crate::error::{Diagnostics, Result};
 use crate::model::{DocMeta, Sheet, Workbook, WriteOptions};
 use crate::style::StyleTable;
@@ -65,8 +66,12 @@ fn assemble_parts(
     worksheets: &[String],
 ) -> Vec<Part> {
     let n = worksheets.len();
+    let images = drawing::build(sheets);
     let mut parts = vec![
-        text_part("[Content_Types].xml", content_types(n)),
+        text_part(
+            "[Content_Types].xml",
+            content_types(n, &images.media_exts, images.drawings),
+        ),
         text_part("_rels/.rels", root_rels()),
         text_part("docProps/core.xml", core_props(&opts.meta)),
         text_part("docProps/app.xml", app_props(&opts.meta)),
@@ -80,6 +85,7 @@ fn assemble_parts(
             xml.clone(),
         ));
     }
+    parts.extend(images.parts);
     parts
 }
 
@@ -91,18 +97,31 @@ fn text_part(name: &str, body: String) -> Part {
     }
 }
 
-/// The `[Content_Types].xml` map, with one worksheet override per sheet.
-fn content_types(sheets: usize) -> String {
+/// The `[Content_Types].xml` map: one worksheet override per sheet, plus an image
+/// `Default` per distinct media extension and a `drawingN.xml` override per
+/// drawing part when the workbook embeds images.
+fn content_types(sheets: usize, media_exts: &[&str], drawings: usize) -> String {
     let mut s = String::from(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">",
     );
     s.push_str("<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>");
     s.push_str("<Default Extension=\"xml\" ContentType=\"application/xml\"/>");
+    for ext in media_exts {
+        s.push_str(&format!(
+            "<Default Extension=\"{ext}\" ContentType=\"{}\"/>",
+            drawing::content_type(ext)
+        ));
+    }
     s.push_str("<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>");
     s.push_str("<Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>");
     for i in 1..=sheets {
         s.push_str(&format!(
             "<Override PartName=\"/xl/worksheets/sheet{i}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>"
+        ));
+    }
+    for i in 1..=drawings {
+        s.push_str(&format!(
+            "<Override PartName=\"/xl/drawings/drawing{i}.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.drawing+xml\"/>"
         ));
     }
     s.push_str("<Override PartName=\"/docProps/core.xml\" ContentType=\"application/vnd.openxmlformats-package.core-properties+xml\"/>");

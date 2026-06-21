@@ -36,7 +36,57 @@
           "type": "object",
           "additionalProperties": false,
           "properties": { "columnsCollapsed": { "type": "boolean" } }
+        },
+        "images": { "type": "array", "items": { "$ref": "#/$defs/sheetImage" } }
+      }
+    },
+    "cellRef": {
+      "type": "object",
+      "required": ["col", "row"],
+      "additionalProperties": false,
+      "description": "Zero-based cell coordinate; A1 is { col: 0, row: 0 }.",
+      "properties": {
+        "col": { "type": "integer", "minimum": 0 },
+        "row": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "imageAnchor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "from", "to"],
+          "description": "Spans from one cell to another, resizing with the grid.",
+          "properties": {
+            "kind": { "const": "twoCell" },
+            "from": { "$ref": "#/$defs/cellRef" },
+            "to": { "$ref": "#/$defs/cellRef" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "at", "width", "height"],
+          "description": "Pinned at one cell with a fixed pixel size (96 dpi).",
+          "properties": {
+            "kind": { "const": "oneCell" },
+            "at": { "$ref": "#/$defs/cellRef" },
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 }
+          }
         }
+      ]
+    },
+    "sheetImage": {
+      "type": "object",
+      "required": ["data", "format", "anchor"],
+      "additionalProperties": false,
+      "description": "A floating embedded image anchored over the grid.",
+      "properties": {
+        "data": { "type": "string", "description": "Base64-encoded image bytes." },
+        "format": { "enum": ["png", "jpeg", "jpg", "gif"] },
+        "anchor": { "$ref": "#/$defs/imageAnchor" },
+        "alt": { "type": "string", "description": "Alt text / title (accessibility)." }
       }
     },
     "column": {

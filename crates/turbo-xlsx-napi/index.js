@@ -184,6 +184,10 @@ function sheetBuilder(sheet) {
       sheet.rows.push({ ...row, isTotal: true });
       return api;
     },
+    addImage(image) {
+      (sheet.images ??= []).push(image);
+      return api;
+    },
   };
   return api;
 }
