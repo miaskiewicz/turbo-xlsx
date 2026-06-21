@@ -67,7 +67,7 @@ pub struct JsWriteOptions {
     /// Default locale for the streaming writer (the batch path reads the
     /// workbook's own `locale`). BCP-47, e.g. `"es-MX"`.
     pub locale: Option<String>,
-    /// AES-style password protection — accepted but deferred to v2 (no-op).
+    /// Password-protect the output with ECMA-376 Agile Encryption (AES-256).
     pub password: Option<String>,
 }
 
@@ -262,8 +262,9 @@ impl WorkbookWriter {
     }
 }
 
-/// Lower the optional JS options into core [`core::WriteOptions`]. `password` is
-/// accepted but deferred (v2), so it is intentionally dropped here.
+/// Lower the optional JS options into core [`core::WriteOptions`]. `password`
+/// triggers ECMA-376 Agile Encryption (built into this package via the core
+/// `encrypt` feature).
 fn to_options(opts: &Option<JsWriteOptions>) -> core::WriteOptions {
     let meta = opts.as_ref().and_then(|o| o.meta.as_ref());
     core::WriteOptions {
@@ -273,6 +274,7 @@ fn to_options(opts: &Option<JsWriteOptions>) -> core::WriteOptions {
             subject: meta.and_then(|m| m.subject.clone()),
             company: meta.and_then(|m| m.company.clone()),
         },
+        password: opts.as_ref().and_then(|o| o.password.clone()),
     }
 }
 

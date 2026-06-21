@@ -24,8 +24,8 @@ pub struct JsDocMeta {
 }
 
 /// JS write options `{ meta?, locale?, password? }`. `locale` seeds the streaming
-/// writer (the batch path reads the workbook's own `locale`); `password` is
-/// accepted but deferred (v2) and intentionally dropped.
+/// writer (the batch path reads the workbook's own `locale`); `password` triggers
+/// ECMA-376 Agile Encryption of the output.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct JsWriteOptions {
@@ -45,6 +45,7 @@ impl JsWriteOptions {
                 subject: meta.subject,
                 company: meta.company,
             },
+            password: self.password,
         }
     }
 }

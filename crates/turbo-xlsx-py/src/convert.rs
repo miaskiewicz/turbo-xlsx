@@ -18,14 +18,18 @@ const META_FIELDS: [(&str, MetaSetter); 4] = [
 ];
 
 /// Lower an optional `opts` dict into core [`WriteOptions`]. Recognized keys:
-/// `meta` (a dict of `title`/`author`/`subject`/`company`) and `locale`, which
-/// is handled by the caller; here only the metadata is read.
+/// `meta` (a dict of `title`/`author`/`subject`/`company`), `locale` (read by the
+/// caller), and `password` (ECMA-376 Agile Encryption of the output).
 pub fn write_options(opts: Option<&Bound<'_, PyDict>>) -> PyResult<WriteOptions> {
     let meta = match opts {
         Some(d) => meta_from_opts(d)?,
         None => DocMeta::default(),
     };
-    Ok(WriteOptions { meta })
+    let password = match opts {
+        Some(d) => opt_str(d, "password")?,
+        None => None,
+    };
+    Ok(WriteOptions { meta, password })
 }
 
 /// Read the optional `locale` key off an `opts` dict.

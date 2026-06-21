@@ -25,6 +25,13 @@ bench-internals = []
 # bindings and the MCP server.
 parse = []
 
+# XLSX password protection (ECMA-376 Agile Encryption): AES-256-CBC + SHA-512 key
+# derivation + HMAC integrity, wrapped in a CFB/OLE2 container. OFF by default —
+# the base build stays dependency-free; turning it on pulls the vetted RustCrypto
+# stack below. Like `parse`, the module is excluded from the 100% coverage gate
+# (crypto round-trips are validated functionally against msoffcrypto-tool).
+encrypt = ["dep:aes", "dep:cbc", "dep:sha2", "dep:hmac", "dep:getrandom", "dep:cfb"]
+
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -32,6 +39,15 @@ thiserror = { workspace = true }
 # Fast, allocation-free integer formatting for the per-cell hot loop (row/column
 # refs, style indices, integer values). Already in the serde_json tree.
 itoa = "1"
+
+# Crypto for the optional `encrypt` feature only (vetted RustCrypto crates). All
+# optional, so a default build links none of them.
+aes = { version = "0.8", optional = true }
+cbc = { version = "0.1", features = ["block-padding", "alloc"], optional = true }
+sha2 = { version = "0.10", optional = true }
+hmac = { version = "0.12", optional = true }
+getrandom = { version = "0.2", optional = true }
+cfb = { version = "0.10", optional = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

@@ -26,5 +26,9 @@ exclude-files = [
     # It is branch-heavy on malformed input and validated functionally instead
     # (round-trip + the parse-compat harness). Listed defensively.
     "crates/turbo-xlsx-core/src/parse/*",
+    # The encryption module is behind the off-by-default `encrypt` feature (not in
+    # the default coverage build) and is validated functionally by a round-trip
+    # through msoffcrypto-tool. Listed defensively.
+    "crates/turbo-xlsx-core/src/encrypt.rs",
 ]
 fail-under = 100.0

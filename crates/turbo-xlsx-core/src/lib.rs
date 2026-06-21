@@ -14,6 +14,8 @@
 
 #![forbid(unsafe_code)]
 
+#[cfg(feature = "encrypt")]
+pub mod encrypt;
 pub mod error;
 pub mod model;
 mod numfmt;
@@ -57,6 +59,32 @@ pub fn write(workbook: &Workbook, opts: &WriteOptions) -> Result<WriteResult> {
     validate::validate(workbook)?;
     let mut diagnostics = Diagnostics::default();
     let xlsx = package::package(workbook, opts, &mut diagnostics)?;
+    build_result(xlsx, opts, diagnostics)
+}
+
+/// Finalize a write: in the base build the package bytes are the result as-is; the
+/// `encrypt` feature wraps them in ECMA-376 Agile Encryption when a password is
+/// set. Split by `cfg` so the base (coverage) build carries no extra branch.
+#[cfg(not(feature = "encrypt"))]
+pub(crate) fn build_result(
+    xlsx: Vec<u8>,
+    _opts: &WriteOptions,
+    diagnostics: Diagnostics,
+) -> Result<WriteResult> {
+    Ok(WriteResult { xlsx, diagnostics })
+}
+
+/// Finalize a write, encrypting the package when `opts.password` is set.
+#[cfg(feature = "encrypt")]
+pub(crate) fn build_result(
+    xlsx: Vec<u8>,
+    opts: &WriteOptions,
+    diagnostics: Diagnostics,
+) -> Result<WriteResult> {
+    let xlsx = match &opts.password {
+        Some(password) if !password.is_empty() => encrypt::encrypt(&xlsx, password)?,
+        _ => xlsx,
+    };
     Ok(WriteResult { xlsx, diagnostics })
 }
 

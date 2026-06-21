@@ -14,7 +14,10 @@ rust-version.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-turbo-xlsx-core = { path = "../turbo-xlsx-core" }
+# `encrypt` is always on: password-protected output is part of every napi build
+# (the crypto deps are negligible in a native addon). `parse` stays the with/
+# without variant axis (see [features]).
+turbo-xlsx-core = { path = "../turbo-xlsx-core", features = ["encrypt"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 # napi-rs front-end (native addon). `napi6` matches the turbo-* ABI baseline.

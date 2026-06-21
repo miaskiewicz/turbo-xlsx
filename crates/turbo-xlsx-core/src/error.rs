@@ -27,6 +27,9 @@ pub enum ErrorCode {
     /// The JSON input parsed but did not match the documented workbook schema
     /// (unknown field, wrong type, missing required field).
     SchemaViolation,
+    /// XLSX password encryption failed (only with the `encrypt` feature).
+    #[cfg(feature = "encrypt")]
+    Encryption,
 }
 
 impl ErrorCode {
@@ -40,6 +43,8 @@ impl ErrorCode {
             ErrorCode::BadColor => "BadColor",
             ErrorCode::InvalidJson => "InvalidJson",
             ErrorCode::SchemaViolation => "SchemaViolation",
+            #[cfg(feature = "encrypt")]
+            ErrorCode::Encryption => "Encryption",
         }
     }
 }
@@ -172,6 +177,12 @@ mod tests {
     fn error_display_uses_code_and_message() {
         let e = TurboXlsxError::new(ErrorCode::BadColor, "nope");
         assert_eq!(e.to_string(), "BadColor: nope");
+    }
+
+    #[cfg(feature = "encrypt")]
+    #[test]
+    fn encryption_code_string() {
+        assert_eq!(ErrorCode::Encryption.as_str(), "Encryption");
     }
 
     #[test]

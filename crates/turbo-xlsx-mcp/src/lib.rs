@@ -105,9 +105,19 @@ fn tool_write(args: &Value) -> Result<Value, String> {
         .get("workbook")
         .cloned()
         .ok_or("write: missing 'workbook'")?;
-    let result =
-        core::write_from_json_value(workbook, &core::WriteOptions::default()).map_err(stringify)?;
+    let result = core::write_from_json_value(workbook, &write_opts(args)).map_err(stringify)?;
     emit(args, &result.xlsx)
+}
+
+/// Build write options, honoring an optional `password` (ECMA-376 Agile Encryption).
+fn write_opts(args: &Value) -> core::WriteOptions {
+    core::WriteOptions {
+        password: args
+            .get("password")
+            .and_then(Value::as_str)
+            .map(String::from),
+        ..Default::default()
+    }
 }
 
 /// `write_rows`: the typed columns + rows fast-path → `.xlsx`.
@@ -123,14 +133,8 @@ fn tool_write_rows(args: &Value) -> Result<Value, String> {
         .map(String::from);
     let columns = field_vec(input, "columns")?;
     let rows = field_vec(input, "rows")?;
-    let result = core::write_rows(
-        sheet_name,
-        columns,
-        rows,
-        locale,
-        &core::WriteOptions::default(),
-    )
-    .map_err(stringify)?;
+    let result = core::write_rows(sheet_name, columns, rows, locale, &write_opts(args))
+        .map_err(stringify)?;
     emit(args, &result.xlsx)
 }
 
@@ -143,8 +147,7 @@ fn tool_convert_csv(args: &Value) -> Result<Value, String> {
         .and_then(Value::as_str)
         .unwrap_or("Sheet1");
     let workbook = csv_to_workbook(&text, name);
-    let result =
-        core::write_from_json_value(workbook, &core::WriteOptions::default()).map_err(stringify)?;
+    let result = core::write_from_json_value(workbook, &write_opts(args)).map_err(stringify)?;
     emit(args, &result.xlsx)
 }
 
@@ -569,7 +572,8 @@ fn tools() -> Vec<Value> {
                 "type": "object",
                 "properties": {
                     "workbook": { "type": "object", "description": "Workbook: { sheets: [...] }" },
-                    "out": { "type": "string", "description": "Optional output file path" }
+                    "out": { "type": "string", "description": "Optional output file path" },
+                    "password": { "type": "string", "description": "Encrypt with this password (AES-256)" }
                 },
                 "required": ["workbook"]
             }),
@@ -582,7 +586,8 @@ fn tools() -> Vec<Value> {
                 "type": "object",
                 "properties": {
                     "input": { "type": "object" },
-                    "out": { "type": "string" }
+                    "out": { "type": "string" },
+                    "password": { "type": "string", "description": "Encrypt with this password (AES-256)" }
                 },
                 "required": ["input"]
             }),
@@ -598,7 +603,8 @@ fn tools() -> Vec<Value> {
                     "path": { "type": "string" },
                     "dataBase64": { "type": "string" },
                     "sheetName": { "type": "string" },
-                    "out": { "type": "string" }
+                    "out": { "type": "string" },
+                    "password": { "type": "string", "description": "Encrypt with this password (AES-256)" }
                 }
             }),
         ),

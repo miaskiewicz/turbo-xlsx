@@ -110,5 +110,11 @@ Verify after: `npm view turbo-xlsx@X.Y.Z version` and `… dist.tarball`.
   currency or locale is hardcoded, unknown pairings fall back (symbol = ISO code,
   prefix placement).
 
-Deferred to v2: embedded images/logos, real XLSX encryption
-(`WriteOptions.password` is accepted but a no-op), DEFLATE compression.
+**Password protection** ships via `WriteOptions.password` — ECMA-376 Agile
+Encryption (AES-256-CBC + SHA-512 KDF + HMAC, CFB/OLE2 container) behind the core
+`encrypt` feature, using the RustCrypto stack. The feature is **always on** for the
+napi/py/wasm/MCP bindings (orthogonal to the `parse` variant axis) and excluded
+from the coverage gate like `parse`; it is verified by a `msoffcrypto-tool`
+round-trip. Encrypting is non-deterministic (random salts/keys).
+
+Deferred to v2: embedded images/logos, DEFLATE compression.

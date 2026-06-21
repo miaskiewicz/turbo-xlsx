@@ -10,8 +10,9 @@ use it directly from Rust.
 
 ```toml
 [dependencies]
-turbo-xlsx-core = "0.1"                                  # writer only
-turbo-xlsx-core = { version = "0.1", features = ["parse"] }  # + XLSX reader
+turbo-xlsx-core = "0.1"                                       # writer only
+turbo-xlsx-core = { version = "0.1", features = ["parse"] }   # + XLSX reader
+turbo-xlsx-core = { version = "0.1", features = ["encrypt"] } # + password protection
 ```
 
 ## Write
@@ -46,6 +47,20 @@ use turbo_xlsx_core::parse::{parse, serialize};
 
 let wb = parse(&bytes)?;                  // ParsedWorkbook (typed cell values)
 let json = serialize::to_json_grid(&wb);  // also to_json_typed / to_csv / to_markdown
+```
+
+## Password protection (`encrypt` feature)
+
+Set `WriteOptions.password` to wrap the output in **ECMA-376 Agile Encryption**
+(AES-256-CBC + SHA-512 key derivation + HMAC, in a CFB/OLE2 container) — the same
+scheme Excel's "Encrypt with Password" produces. Uses the vetted RustCrypto crates;
+verified by a `msoffcrypto-tool` round-trip.
+
+```rust
+use turbo_xlsx_core::{write_from_json_value, WriteOptions};
+
+let opts = WriteOptions { password: Some("s3cret".into()), ..Default::default() };
+let encrypted = write_from_json_value(workbook, &opts)?.xlsx;
 ```
 
 ## Design

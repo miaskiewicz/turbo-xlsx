@@ -16,7 +16,8 @@ name = "turbo_xlsx_py"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-turbo-xlsx-core = { path = "../turbo-xlsx-core" }
+# `encrypt` always on: password-protected output ships in every wheel.
+turbo-xlsx-core = { path = "../turbo-xlsx-core", features = ["encrypt"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 # PyO3 0.23 keeps a Rust MSRV the workspace's 1.88 satisfies; `abi3-py38`

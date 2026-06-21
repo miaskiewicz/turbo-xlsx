@@ -352,6 +352,11 @@ pub enum BorderStyle {
 #[derive(Debug, Clone, Default)]
 pub struct WriteOptions {
     pub meta: DocMeta,
+    /// When set (and the crate is built with the `encrypt` feature), the written
+    /// `.xlsx` is wrapped in ECMA-376 Agile Encryption protected by this password.
+    /// Without the feature it is ignored. Encrypting makes output non-deterministic
+    /// (random salts/keys), unlike the plain writer.
+    pub password: Option<String>,
 }
 
 /// Workbook metadata written to the OPC core/app parts. All fields optional.

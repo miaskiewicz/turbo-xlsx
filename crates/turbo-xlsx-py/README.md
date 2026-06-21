@@ -52,7 +52,10 @@ assert data.startswith(b"PK")
   or `typed=True` model), `format="csv"`, or `format="md"`. ~10× faster than
   openpyxl at reading, cell-for-cell verified against it.
 
-`opts` is an optional dict `{meta: {title, author, subject, company}, locale?}`.
+`opts` is an optional dict `{meta: {title, author, subject, company}, locale?,
+password?}`. Setting `password` encrypts the output with ECMA-376 Agile Encryption
+(AES-256) — `x.write(wb, {"password": "s3cret"})` — which Excel/LibreOffice open
+with that password.
 
 Fatal validate/write faults raise `TurboXlsxError` (with `.code` and `.message`).
 Non-fatal lints are *returned*, never raised.

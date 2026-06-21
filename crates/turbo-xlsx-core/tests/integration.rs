@@ -80,6 +80,7 @@ fn writes_a_styled_multi_sheet_workbook_with_metadata() {
             subject: Some("Nómina".into()),
             company: Some("FluxPayroll".into()),
         },
+        password: None,
     };
     let result = write(&wb, &opts).unwrap();
     assert!(result.diagnostics.is_empty());

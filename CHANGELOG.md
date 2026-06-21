@@ -4,6 +4,25 @@ All notable changes to **turbo-xlsx** are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] — 2026-06-21
+
+### Added
+
+- **Password protection** (`WriteOptions.password`) — real **ECMA-376 Agile
+  Encryption**: AES-256-CBC of the package in 4096-byte segments, SHA-512 password
+  key derivation (100k spins), and an HMAC-SHA-512 integrity tag, wrapped in a
+  CFB/OLE2 container. The same scheme Excel's "Encrypt with Password" produces;
+  Excel / LibreOffice / `msoffcrypto-tool` open it with the password. Verified by a
+  decrypt round-trip through `msoffcrypto-tool`.
+  - Wired through **all bindings**: napi (`{ password }`), Python (`"password"`),
+    wasm (CSPRNG via Web Crypto), and the MCP `write` / `write_rows` / `convert_csv`
+    tools.
+  - Built on the vetted RustCrypto crates behind a new core `encrypt` feature (the
+    base crate stays dependency-free); the bindings enable it unconditionally,
+    orthogonal to the `parse` variant axis. The module is excluded from the 100%
+    coverage gate (like `parse`) and validated functionally.
+  - Encrypting is **non-deterministic** (random salts/keys), unlike the plain writer.
+
 ## [0.1.2] — 2026-06-21
 
 ### Performance
@@ -112,6 +131,7 @@ shipped to **npm** (`turbo-xlsx`), **PyPI** (`turbo-xlsx`), and the **browser**
   formulas, no cross-sheet references, no charts, no embedded images, no `.xls`.
 - `WriteOptions.password` is accepted but a no-op (XLSX encryption is v2).
 
+[0.1.3]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.3
 [0.1.2]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.2
 [0.1.1]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.1
 [0.1.0]: https://github.com/miaskiewicz/turbo-xlsx/releases/tag/v0.1.0

@@ -119,10 +119,7 @@ impl WorkbookWriter {
         self.close_open()?;
         let styles = self.table.to_xml();
         let xlsx = finish_package(&self.metas, &self.opts, &styles, &self.sheets);
-        Ok(WriteResult {
-            xlsx,
-            diagnostics: self.diags,
-        })
+        crate::build_result(xlsx, &self.opts, self.diags)
     }
 
     /// Seal the currently open sheet (if any) into a finished worksheet part.

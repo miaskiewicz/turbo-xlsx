@@ -134,6 +134,42 @@ Correctness is verified **cell-for-cell against SheetJS and openpyxl** on their 
 DEFLATEd output (see [Benchmarks](#parse--turbo-xlsx-vs-sheetjs--openpyxl)), on top
 of the core's round-trip + edge-case unit tests.
 
+## Password protection
+
+Set `password` to encrypt the output with **ECMA-376 Agile Encryption** — the same
+AES-256 scheme Excel's "Encrypt with Password" produces (a CFB/OLE2 container, not a
+zip). Excel, LibreOffice and `msoffcrypto-tool` open it with the password. Built
+into every binding (no separate variant).
+
+```ts
+// Node
+import { write } from "turbo-xlsx";
+const xlsx = write(workbook, { password: "s3cret" }); // encrypted .xlsx Buffer
+```
+
+```python
+# Python (turbo-xlsx-rs)
+data = x.write(wb, {"password": "s3cret"})
+```
+
+```js
+// Browser (turbo-xlsx-wasm) — CSPRNG via Web Crypto
+const { xlsx } = write(workbook, { password: "s3cret" });
+```
+
+```rust
+// Rust core (the `encrypt` feature)
+let opts = WriteOptions { password: Some("s3cret".into()), ..Default::default() };
+let xlsx = write_from_json_value(workbook, &opts)?.xlsx;
+```
+
+The MCP `write` / `write_rows` / `convert_csv` tools take an optional `password`
+argument too. Under the hood: AES-256-CBC of the package in 4096-byte segments,
+SHA-512 password key derivation (100k spins), and an HMAC-SHA-512 integrity tag,
+via the vetted RustCrypto crates (the `encrypt` Cargo feature, on for the bindings).
+Encrypting makes output **non-deterministic** (random salts/keys), unlike the plain
+writer. Verified by a round-trip through `msoffcrypto-tool`.
+
 ## MCP server
 
 `turbo-xlsx-mcp` is a native **MCP** (Model Context Protocol) server — hand-rolled
@@ -186,8 +222,9 @@ fonts: a lean writer-only base package, and a `…-parse` build that adds the XL
 `turbo-xlsx-parse`; on PyPI `turbo-xlsx-rs` vs `turbo-xlsx-rs-parse` (the import
 name stays `turbo_xlsx`; PyPI rejects `turbo-xlsx` as too close to the existing
 `turboxlsx`); for wasm `turbo-xlsx-wasm` vs `turbo-xlsx-wasm-parse`. The reader is
-off by default so the common write-only install carries no extra code (wasm: 188 KB
-→ 211 KB gzipped).
+off by default so the base install carries no extra reader code (wasm: 229 KB →
+252 KB gzipped). **Password encryption is built into every variant** (the `encrypt`
+feature), orthogonal to this reader split.
 
 All three bindings expose the same surface over the one core — Node (`turbo-xlsx`),
 Python (`import turbo_xlsx`), browser (wasm). The Python `WorkbookWriter` mirrors
@@ -364,8 +401,7 @@ values/types reader (it extracts cell values, types and dates — not fonts, fil
 freeze panes — and writing remains the primary direction). No charts, no HTML/Jinja
 templating, no `.xls` (legacy BIFF), no pivot tables / conditional formatting beyond
 the static negative-in-red number format, no formulas / cross-sheet references.
-Embedded images and password protection are v2 (`WriteOptions.password` is accepted
-but a no-op today).
+Embedded images remain future work. **Password protection ships** — see below.
 
 ## License
 

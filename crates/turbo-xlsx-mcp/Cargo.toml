@@ -20,7 +20,8 @@ name = "turbo-xlsx-mcp"
 path = "src/main.rs"
 
 [dependencies]
-# The MCP server always ships parse: it is the read/inspect side of the tools.
-turbo-xlsx-core = { path = "../turbo-xlsx-core", features = ["parse"] }
+# The MCP server ships parse (the read/inspect tools) and encrypt (the write
+# tools' optional `password`).
+turbo-xlsx-core = { path = "../turbo-xlsx-core", features = ["parse", "encrypt"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

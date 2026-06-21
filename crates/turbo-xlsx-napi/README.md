@@ -55,6 +55,10 @@ const xlsx = write({
   model), `{ format: "csv" }`, or `{ format: "md" }`. ~1.85× faster than calamine,
   cell-for-cell verified against SheetJS / ExcelJS / openpyxl.
 
+**Password protection:** pass `{ password }` to any write call to encrypt the output
+with ECMA-376 Agile Encryption (AES-256) — `write(workbook, { password: "s3cret" })`.
+Excel / LibreOffice open it with that password.
+
 Returned Buffers carry the run's non-fatal `.diagnostics`; the streaming
 `finish()` returns `{ xlsx, diagnostics }`. Fatal faults throw a typed
 `TurboXlsxError` with a stable `.code`. Full types in `index.d.ts`; the JSON

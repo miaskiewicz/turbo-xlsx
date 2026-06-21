@@ -1,6 +1,6 @@
 {
   "name": "turbo-xlsx",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Fast native structured-workbook-model to formatted XLSX for Node — no headless office, accountant-grade number formats, streaming.",
   "license": "MIT",
   "main": "index.js",

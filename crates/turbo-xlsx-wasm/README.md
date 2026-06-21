@@ -9,8 +9,8 @@ client-side with no server round-trip.
 ## Install
 
 ```sh
-npm install turbo-xlsx-wasm          # lean writer (~188 KB gzipped)
-npm install turbo-xlsx-wasm-parse    # writer + XLSX reader (~211 KB gzipped, adds parse())
+npm install turbo-xlsx-wasm          # writer + encryption (~229 KB gzipped)
+npm install turbo-xlsx-wasm-parse    # + XLSX reader (~252 KB gzipped, adds parse())
 ```
 
 Two variants, like the napi packages: the base is write-only; `-parse` adds an
@@ -38,8 +38,13 @@ const csv = parse(xlsx, { format: "csv" });
 
 `write` / `writeFromJson` / `writeRows` / `createWriter` mirror the Node API and
 return `{ xlsx: Uint8Array, diagnostics }`. Fatal faults throw a structured
-`{ code }` error. See the [repo](https://github.com/miaskiewicz/turbo-xlsx) for
-the full workbook schema and benchmarks.
+`{ code }` error.
+
+**Password protection:** pass `{ password }` to encrypt the output with ECMA-376
+Agile Encryption (AES-256) — the CSPRNG runs through the browser's Web Crypto API.
+
+See the [repo](https://github.com/miaskiewicz/turbo-xlsx) for the full workbook
+schema and benchmarks.
 
 ## License
 

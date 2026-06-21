@@ -43,7 +43,7 @@ export interface WriteOptions {
   /** Default locale for the streaming writer (the batch path reads the
    *  workbook's own `locale`). BCP-47, e.g. `"es-MX"`. */
   locale?: string;
-  /** AES-style XLSX password protection — accepted but deferred to v2 (no-op). */
+  /** Password-protect the `.xlsx` with ECMA-376 Agile Encryption (AES-256). */
   password?: string;
 }
 

@@ -18,12 +18,16 @@ crate-type = ["cdylib", "rlib"]
 # turbo-xlsx-core has no optional features and uses no randomness, so the deps
 # stay minimal: no getrandom backend, no serde_bytes. The `xlsx` bytes cross the
 # boundary as a real `js_sys::Uint8Array`.
-turbo-xlsx-core = { path = "../turbo-xlsx-core" }
+# `encrypt` always on: password-protected output works in the browser too. The
+# crypto's CSPRNG (getrandom) needs the `js` backend in wasm — declared below.
+turbo-xlsx-core = { path = "../turbo-xlsx-core", features = ["encrypt"] }
 wasm-bindgen = "0.2"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde-wasm-bindgen = "0.6"
 js-sys = "0.3"
+# Route the crypto CSPRNG through the Web Crypto API in the browser.
+getrandom = { version = "0.2", features = ["js"] }
 
 [features]
 # OFF by default: the base `turbo-xlsx-wasm` browser package is a lean writer.
